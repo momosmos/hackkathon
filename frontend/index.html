@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบเลือกตั้งสภานักเรียน 2026</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+    <div id="app" class="min-h-screen flex flex-col">
+        <header class="bg-blue-900 text-white shadow-lg sticky top-0 z-50">
+            <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="vote" class="text-amber-400"></i>
+                    <span class="font-bold text-lg uppercase tracking-tight">E-Voting 2026</span>
+                </div>
+                <div id="user-nav" class="text-sm font-medium flex items-center gap-3">
+                    </div>
+            </div>
+        </header>
+
+        <main class="flex-grow max-w-7xl w-full mx-auto px-4 py-8">
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-blue-100 mb-8 flex flex-col md:flex-row items-center justify-between gap-4">
+                <div>
+                    <h2 id="election-title" class="text-xl font-bold text-blue-900">กำลังโหลดข้อมูลการเลือกตั้ง...</h2>
+                    <p class="text-slate-500 text-sm">กรุณาตรวจสอบเบอร์และนโยบายก่อนลงคะแนน</p>
+                </div>
+                <div class="text-center bg-amber-50 px-6 py-2 rounded-xl border border-amber-200">
+                    <p class="text-[10px] text-amber-600 font-bold uppercase">เวลาที่เหลือ</p>
+                    <div id="timer" class="text-2xl font-bold text-amber-900 tabular-nums">00:00:00</div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div class="lg:col-span-2">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="candidate-grid">
+                        </div>
+                </div>
+
+                <div class="space-y-6">
+                    <div class="bg-slate-900 rounded-3xl shadow-xl p-6 text-white border border-slate-800">
+                        <div class="flex items-center gap-2 mb-4">
+                            <i data-lucide="bot" class="text-blue-400"></i>
+                            <h3 class="font-bold">AI ผู้ช่วยแนะนำพรรค</h3>
+                        </div>
+                        <div id="chat-box" class="h-64 overflow-y-auto mb-4 space-y-3 text-xs no-scrollbar">
+                            <div class="bg-slate-800 p-3 rounded-2xl rounded-tl-none border border-slate-7
