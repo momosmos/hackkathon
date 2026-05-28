@@ -1,4 +1,4 @@
-import * as service from "../services/admin.service.js"
+import * as service from "../services/admin.service.js";
 
 // ==========================================
 // 🔑 1. ระบบยืนยันตัวตนแอดมิน (Authentication)
@@ -23,16 +23,17 @@ export const loginAdmin = async (req, res) => {
 };
 
 // ==========================================
-// 🎓 2. ระบบจัดการนักเรียน (Student Management) - [เพิ่มใหม่]
+// 🎓 2. ระบบจัดการนักเรียน (Student Management) 
 // ==========================================
 
-// แอดมินเพิ่มรายชื่อนักเรียนเข้าระบบ (รับเฉพาะข้อมูลที่จำเป็นและปลอดภัย)
+// แอดมินเพิ่มรายชื่อนักเรียนเข้าระบบ 
 export const addStudent = async (req, res) => {
     try {
-        const { student_id, student_name, student_class, student_email, student_status } = req.body;
+        // 🚨 [เพิ่มใหม่] รับค่า password มาด้วย เผื่อแอดมินตั้งรหัสให้เด็กจากหน้าเว็บ
+        const { student_id, student_name, student_class, student_email, student_status, password } = req.body;
         
         const result = await service.addStudent({
-            student_id, student_name, student_class, student_email, student_status
+            student_id, student_name, student_class, student_email, student_status, password
         });
 
         return res.status(201).json({ message: "STUDENT ADDED SUCCESS", data: result });
@@ -101,7 +102,7 @@ export const adminAddCandidate = async (req, res) => {
     }
 };
 
-// [เพิ่มใหม่] แอดมินเพิ่มรายชื่อลูกทีมเข้าพรรค
+// แอดมินเพิ่มรายชื่อลูกทีมเข้าพรรค
 export const addCandidateMember = async (req, res) => {
     try {
         const { candidate_id, student_id, member_role } = req.body;
@@ -127,7 +128,6 @@ export const updateCandidateStatus = async (req, res) => {
 };
 
 // ==========================================
-// ==========================================
 // 📊 5. ระบบรายงานผลหน้าแดชบอร์ด (Analytics)
 // ==========================================
 
@@ -143,9 +143,9 @@ export const getDashboardAnalytics = async (req, res) => {
     } catch (err) {
         return res.status(500).json({ message: "FETCH DASHBOARD ANALYTICS ERROR", error: err.message });
     }
-}; // <--- [ต้องมีปีกกาปิดตรงนี้ครับ เพื่อจบฟังก์ชันของ Dashboard]
+}; 
 
-// [เพิ่มใหม่] ดึงรายชื่อนักเรียนและผู้สมัครทั้งหมด (เอาไปโชว์มุมซ้ายล่างหน้า Dashboard)
+// ดึงรายชื่อนักเรียนและผู้สมัครทั้งหมด (เอาไปโชว์มุมซ้ายล่างหน้า Dashboard)
 export const getAllMembersForAdmin = async (req, res) => {
     try {
         const members = await service.getAllMembersForAdmin();
@@ -153,5 +153,4 @@ export const getAllMembersForAdmin = async (req, res) => {
     } catch (err) {
         return res.status(500).json({ message: "FETCH ALL MEMBERS ERROR", error: err.message });
     }
-}; 
-// <--- ลบปีกกาที่เกินมาบรรทัดสุดท้ายสุดทิ้งไปได้เลยครับ
+};

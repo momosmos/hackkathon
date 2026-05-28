@@ -1,4 +1,5 @@
 import * as repository from "../repositories/admin.repository.js";
+import bcrypt from "bcrypt"; // 📌 [เพิ่มใหม่] Import ไลบรารีสำหรับ Hash รหัสผ่าน
 
 // ==========================================
 // 🔑 1. Logic ระบบยืนยันตัวตนแอดมิน (Authentication)
@@ -34,11 +35,24 @@ export const loginAdmin = async (username, password) => {
 };
 
 // ==========================================
-// ==========================================
-// 🎓 2. Logic ระบบจัดการนักเรียน (Student Management) - [เพิ่มใหม่]
+// 🎓 2. Logic ระบบจัดการนักเรียน (Student Management)
 // ==========================================
 export const addStudent = async (studentData) => {
-    return await repository.addStudent(studentData);
+    // 📌 [อัปเดต] Logic การ Hash รหัสผ่าน
+    // 1. ถ้าไม่มีการส่งรหัสผ่านมา ให้ใช้ "รหัสนักเรียน" เป็นรหัสผ่านเริ่มต้น
+    const plainPassword = studentData.password || studentData.student_id;
+    
+    // 2. ทำการ Hash รหัสผ่าน
+    const hashedPassword = await bcrypt.hash(plainPassword, 10);
+    
+    // 3. เอาข้อมูลรหัสผ่านที่ Hash แล้ว สวมทับข้อมูลเดิม
+    const secureStudentData = { 
+        ...studentData, 
+        password: hashedPassword 
+    };
+
+    // 4. ส่งข้อมูลที่ปลอดภัยแล้วไปให้ Repository บันทึก
+    return await repository.addStudent(secureStudentData);
 };
 
 // [เพิ่มใหม่] ดึงรายชื่อนักเรียนและผู้สมัครทั้งหมด เพื่อส่งให้กล่องมุมซ้ายล่างหน้า Dashboard

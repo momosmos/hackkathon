@@ -1,31 +1,374 @@
-body { font-family: 'Prompt', sans-serif; }
-
-.no-scrollbar::-webkit-scrollbar { display: none; }
-.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
-#chat-box div {
-    animation: fadeIn 0.3s ease-out forwards;
+/* ฟอนต์หลักและพื้นหลัง */
+body {
+    font-family: 'Prompt', sans-serif;
+    background-color: #f0f4f8;
 }
 
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+/* ซ่อน scrollbar แต่ยังสามารถเลื่อนได้ */
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
 }
 
-.candidate-card {
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
 }
 
-.candidate-card:hover:not(.voted) {
-    transform: translateY(-8px);
-    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+/* =========================
+   ELECTION TIMELINE
+========================= */
+
+.election-timeline {
+    position: relative;
+    margin-top: 2rem;
+    padding-left: 30px;
 }
 
-.scale-in {
-    animation: scaleIn 0.2s ease-out;
+.election-timeline::before {
+    content: "";
+    position: absolute;
+    left: 10px;
+    top: 0;
+    width: 4px;
+    height: 100%;
+    background: linear-gradient(to bottom,
+            #2563eb,
+            #60a5fa,
+            #bfdbfe);
+    border-radius: 999px;
 }
 
-@keyframes scaleIn {
-    from { transform: scale(0.9); opacity: 0; }
-    to { transform: scale(1); opacity: 1; }
+.timeline-item {
+    position: relative;
+    margin-bottom: 40px;
+}
+
+.timeline-dot {
+    position: absolute;
+    left: -28px;
+    top: 10px;
+    width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    background: white;
+    border: 4px solid #3b82f6;
+    box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.12);
+}
+
+.timeline-content {
+    background: linear-gradient(135deg,
+            #f8fbff,
+            #eef5ff);
+    border: 1px solid #dbeafe;
+    border-radius: 20px;
+    padding: 20px;
+    transition: 0.3s;
+}
+
+.timeline-content:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 25px rgba(37, 99, 235, 0.12);
+}
+
+.timeline-date {
+    display: inline-block;
+    background: #dbeafe;
+    color: #1d4ed8;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 5px 12px;
+    border-radius: 999px;
+    margin-bottom: 12px;
+}
+
+.timeline-content h4 {
+    font-size: 20px;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 8px;
+}
+
+.timeline-content p {
+    font-size: 14px;
+    color: #64748b;
+    line-height: 1.7;
+}
+
+.timeline-item.current .timeline-dot {
+    background: #2563eb;
+    animation: pulseTimeline 1.5s infinite;
+}
+
+@keyframes pulseTimeline {
+    0% {
+        box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.5);
+    }
+
+    70% {
+        box-shadow: 0 0 0 12px rgba(37, 99, 235, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(37, 99, 235, 0);
+    }
+}
+
+/* =========================
+   HISTORY RESULTS
+========================= */
+
+.history-card {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 24px;
+    background: linear-gradient(135deg,
+            #ffffff,
+            #f8fbff);
+    border: 1px solid #dbeafe;
+    border-radius: 28px;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+}
+
+.history-image-section {
+    position: relative;
+    background: linear-gradient(135deg,
+            #1e3a8a,
+            #2563eb);
+    padding: 20px;
+}
+
+.history-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 22px;
+    border: 4px solid rgba(255, 255, 255, 0.2);
+}
+
+.history-badge {
+    position: absolute;
+    bottom: 35px;
+    left: 35px;
+    background: rgba(255, 255, 255, 0.92);
+    color: #1e3a8a;
+    padding: 10px 18px;
+    border-radius: 14px;
+    font-size: 13px;
+    font-weight: 700;
+    backdrop-filter: blur(10px);
+}
+
+.history-content {
+    padding: 30px;
+}
+
+.history-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.history-year {
+    display: inline-block;
+    background: #dbeafe;
+    color: #1d4ed8;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 6px 12px;
+    border-radius: 999px;
+    margin-bottom: 12px;
+}
+
+.history-header h3 {
+    font-size: 32px;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 6px;
+}
+
+.history-header p {
+    color: #64748b;
+    font-size: 15px;
+}
+
+.history-score {
+    background: linear-gradient(135deg,
+            #1d4ed8,
+            #2563eb);
+    color: white;
+    padding: 18px 24px;
+    border-radius: 22px;
+    min-width: 170px;
+    text-align: center;
+}
+
+.history-score span {
+    display: block;
+    font-size: 13px;
+    opacity: 0.8;
+}
+
+.history-score strong {
+    font-size: 34px;
+    display: block;
+    margin-top: 6px;
+}
+
+.result-label {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #334155;
+}
+
+.result-bar {
+    width: 100%;
+    height: 14px;
+    background: #e2e8f0;
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.result-fill {
+    height: 100%;
+    border-radius: 999px;
+}
+
+.fill-1 {
+    background: linear-gradient(to right,
+            #1d4ed8,
+            #2563eb);
+}
+
+.fill-2 {
+    background: linear-gradient(to right,
+            #3b82f6,
+            #60a5fa);
+}
+
+.fill-3 {
+    background: linear-gradient(to right,
+            #93c5fd,
+            #bfdbfe);
+}
+
+/* RESPONSIVE */
+
+@media (max-width: 900px) {
+
+    .history-card {
+        grid-template-columns: 1fr;
+    }
+
+    .history-image-section {
+        height: 350px;
+    }
+
+}
+
+@media (max-width: 640px) {
+
+    .timeline-content h4 {
+        font-size: 18px;
+    }
+
+    .history-header h3 {
+        font-size: 24px;
+    }
+
+}
+
+.candidate-image-box {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    border-radius: 28px;
+    border: 4px solid rgba(255, 255, 255, 0.15);
+    background: linear-gradient(135deg,
+            #dbeafe,
+            #bfdbfe);
+}
+
+.candidate-image-box img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+/* =========================
+   OTP VERIFICATION
+========================= */
+
+.otp-digit {
+    width: 2.75rem;
+    font-size: 1.25rem;
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+    letter-spacing: 0.05em;
+}
+
+.otp-digit.is-filled {
+    border-color: #3b82f6;
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.otp-digit.is-error {
+    border-color: #ef4444;
+    background: #fef2f2;
+    animation: shake 0.3s ease;
+}
+
+@keyframes shake {
+
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    25% {
+        transform: translateX(-4px);
+    }
+
+    75% {
+        transform: translateX(4px);
+    }
+}
+
+#otp-modal .otp-success-ring {
+    animation: successPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes successPop {
+    0% {
+        transform: scale(0.8);
+        opacity: 0;
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* Password field border error animation */
+#auth-confirm-password.border-red-400 {
+    border-color: #f87171;
+    animation: shake 0.35s ease;
+}
+
+
+#app {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+main {
+    flex: 1;
 }

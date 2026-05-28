@@ -12,6 +12,7 @@ const PORT = 3000;
 
 app.use(cors());
 app.use(express.json());
+// ใส่middle
 
 // สารบัญเส้นทาง API ของระบบ
 app.use("/api/students", studentRoutes);

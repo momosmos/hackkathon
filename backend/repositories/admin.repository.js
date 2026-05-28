@@ -19,22 +19,21 @@ export const getAdminByUsername = async (username) => {
 // 🎓 โซนที่ 1.5: จัดการนักเรียน (Student Management) 
 // ==========================================
 
-// 2. แอดมินเพิ่มรายชื่อนักเรียน (ใช้ Dummy Data ดักฝั่ง Backend เพื่อไม่ต้องแก้โครงสร้าง SQL)
+// 2. แอดมินเพิ่มรายชื่อนักเรียน 
 export const addStudent = async (studentData) => {
-    // รับข้อมูลมาจากหน้าเว็บเท่าที่จำเป็นและปลอดภัย (Data Minimization)
-    const { student_id, student_name, student_class, student_email, student_status } = studentData;
+    // 🚨 [อัปเดต] รับ password (ที่ถูกแฮชมาจาก Service) เข้ามาด้วย
+    const { student_id, student_name, student_class, student_email, student_status, password } = studentData;
 
     // Backend สร้างข้อมูลจำลอง (Dummy) เติมช่องที่เหลือให้เต็ม เพื่อไม่ให้ SQL เตะออก
     const dummyMajor = "N/A";
     const dummyStartYear = 0;
     const dummyEndYear = 0;
-    const dummyPassword = "NO_PASSWORD_REQUIRED"; 
 
-    // สั่ง INSERT ลง Database แบบเต็มยศ
+    // สั่ง INSERT ลง Database แบบเต็มยศ (ใช้ password ของจริง)
     const [result] = await dbconnect1.query(
         `INSERT INTO student (student_id, student_name, student_class, major, start_year, end_year, password, student_email, student_status) 
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [student_id, student_name, student_class, dummyMajor, dummyStartYear, dummyEndYear, dummyPassword, student_email, student_status]
+        [student_id, student_name, student_class, dummyMajor, dummyStartYear, dummyEndYear, password, student_email, student_status]
     );
     return result;
 };
@@ -158,8 +157,9 @@ export const getSecureVoteCount = async (eventId) => {
     
     return validResults; 
 };
+
 // ==========================================
-// 🎓 โซนที่ 1.5: จัดการนักเรียน (Student Management)
+// 🎓 โซนที่ 1.5: จัดการนักเรียน (Student Management - ต่อ)
 // ==========================================
 
 // 13. ดึงรายชื่อนักเรียน/ผู้สมัคร ทั้งหมด สำหรับหน้า Dashboard แอดมิน

@@ -1,76 +1,112 @@
 import * as studentService from '../services/student.service.js';
 
 /**
- * 1. คอนโทรลเลอร์: ลงทะเบียนนักเรียนใหม่
+ * 1. คอนโทรลเลอร์สำหรับการลงทะเบียน (Register)
+ * POST /api/students/register
  */
-export const handleRegister = async (req, res) => {
+export const register = async (req, res, next) => {
     try {
-        // รับข้อมูลจากหน้า UI (ID, Name, Pass, Class, Year)
-        const result = await studentService.register(req.body);
-        
+        // 🚨 ปรับมารับ 5 ช่องหลัก + ยืนยันรหัสผ่าน ตามที่เราตกลงกันไว้
+        const { student_id, student_name, student_class, end_year, password, confirm_password } = req.body;
+
+        // Validation เบื้องต้น
+        if (!student_id || !student_name || !password || !confirm_password) {
+            return res.status(400).json({ status: "error", message: "กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน" });
+        }
+
+        // ส่งข้อมูลไปให้ Service ทำงาน
+        const result = await studentService.register({
+            student_id,
+            student_name,
+            student_class,
+            end_year,
+            password,
+            confirm_password
+        });
+
+        // เช็คผลลัพธ์จาก Service
+        if (!result.success) {
+            return res.status(400).json({ status: "error", message: result.message });
+        }
+
         res.status(201).json({
             status: "success",
-            message: "ลงทะเบียนสำเร็จแล้ว สามารถเข้าสู่ระบบได้ทันที",
-            data: result
+            message: result.message
         });
     } catch (error) {
-        res.status(400).json({ status: "error", message: error.message });
+        next(error); // ส่ง Error ไปให้ Global Error Handler จัดการ
     }
 };
 
 /**
- * 2. คอนโทรลเลอร์: เข้าสู่ระบบ
+ * 2. คอนโทรลเลอร์สำหรับการเข้าสู่ระบบ (Login)
+ * POST /api/students/login
  */
-export const handleLogin = async (req, res) => {
+export const login = async (req, res, next) => {
     try {
         const { student_id, password } = req.body;
-        const result = await studentService.login(student_id, password);
-        
-        res.status(200).json({
-            status: "success",
-            message: "เข้าสู่ระบบสำเร็จ",
-            token: result.token,
-            student_name: result.student_name
-        });
-    } catch (error) {
-        res.status(401).json({ status: "error", message: error.message });
-    }
-};
 
-/**
- * 3. คอนโทรลเลอร์: ขอ OTP ก่อนโหวต (รับ Email จากหน้าบ้าน)
- */
-export const handleRequestVoteOTP = async (req, res) => {
-    try {
-        const { student_id, email } = req.body;
-        
-        // เรียกใช้ Service เพื่อส่งเมลและสร้าง Token
-        const result = await studentService.requestVoteOTP(student_id, email);
-        
+        if (!student_id || !password) {
+            return res.status(400).json({ status: "error", message: "กรุณากรอกรหัสนักเรียนและรหัสผ่าน" });
+        }
+
+        const result = await studentService.login(student_id, password);
+
+        // ถ้ารหัสผิด หรือไม่มีสิทธิ์เข้าใช้งาน
+        if (!result.success) {
+            return res.status(401).json({ status: "error", message: result.message });
+        }
+
         res.status(200).json({
             status: "success",
             message: result.message,
-            voteToken: result.voteToken // หน้าบ้านต้องเก็บตัวนี้ไว้ส่งกลับมาตอน Verify
+            data: {
+                student: result.data,
+                token: result.token // Frontend จะต้องเก็บ Token นี้ไว้ใน LocalStorage หรือ Session
+            }
         });
     } catch (error) {
-        res.status(500).json({ status: "error", message: error.message });
+        next(error);
     }
 };
 
 /**
- * 4. คอนโทรลเลอร์: ยืนยัน OTP และบันทึกโหวต
+ * 3. คอนโทรลเลอร์สำหรับดูโปรไฟล์ (Get Profile)
+ * GET /api/students/profile
  */
-export const handleConfirmVote = async (req, res) => {
+export const getProfile = async (req, res, next) => {
     try {
-        // รับค่ามาครบชุด (Token, เลข OTP, ข้อมูลการโหวต)
-        const result = await studentService.verifyAndCastVote(req.body);
+        // student_id ตัวนี้ได้มาจาก Auth Middleware ที่เพื่อนคุณมอสน่าจะเขียนดักไว้
+        const studentId = req.student_id; 
+        
+        const result = await studentService.getProfile(studentId);
+        
+        if (!result.success) {
+            return res.status(404).json({ status: "error", message: result.message });
+        }
+
+        res.status(200).json({
+            status: "success",
+            data: result.data
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * 4. [เพิ่มใหม่] คอนโทรลเลอร์สำหรับหน้า Home
+ * GET /api/students/home
+ */
+export const getHomePageData = async (req, res, next) => {
+    try {
+        const result = await studentService.getHomeData();
         
         res.status(200).json({
             status: "success",
-            message: "บันทึกคะแนนโหวตของท่านเรียบร้อยแล้ว",
-            receipt: result.receipt
+            data: result.data
         });
     } catch (error) {
-        res.status(400).json({ status: "error", message: error.message });
+        next(error);
     }
 };
