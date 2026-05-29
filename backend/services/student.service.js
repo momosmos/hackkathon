@@ -1,6 +1,65 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken'; // 📌 ขอบคุณระบบสร้างบัตรผ่านจากเพื่อนคุณมอส!
 import * as studentRepo from '../repositories/student.repository.js';
+import { sendEmail } from '../utils/emailHelper.js';
+
+// ==========================================
+// 🔐 ลืมรหัสผ่าน (Forgot / Reset Password) — ยืนยันตัวตนด้วย OTP ทางอีเมล
+// ==========================================
+
+/**
+ * ขั้นที่ 1: ขอ OTP รีเซ็ตรหัสผ่าน
+ * วิธียืนยันตัวตน: ต้องรู้ "รหัสนักเรียน" ที่มีอยู่จริง + เข้าถึง "อีเมล" ที่กรอก (รับ OTP)
+ * คืน resetToken (JWT อายุ 10 นาที ที่ผูก student_id + OTP ไว้ — stateless ไม่ลง DB)
+ */
+export const requestPasswordReset = async (studentId, email) => {
+    const student = await studentRepo.findById(studentId);
+    if (!student) {
+        return { success: false, message: "ไม่พบรหัสนักเรียนนี้ในระบบ" };
+    }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return { success: false, message: "กรุณากรอกอีเมลให้ถูกต้องเพื่อรับรหัสยืนยัน" };
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const resetToken = jwt.sign(
+        { studentId, otp, purpose: "reset" },
+        process.env.OTP_SECRET,
+        { expiresIn: "10m" }
+    );
+
+    await sendEmail(
+        email,
+        "รหัส OTP สำหรับรีเซ็ตรหัสผ่าน",
+        `รหัสยืนยันการรีเซ็ตรหัสผ่านของคุณคือ: ${otp}\n(รหัสนี้มีอายุ 10 นาที หากคุณไม่ได้ร้องขอ โปรดละเว้นอีเมลนี้)`
+    );
+
+    return { success: true, resetToken, email };
+};
+
+/**
+ * ขั้นที่ 2: ยืนยัน OTP และตั้งรหัสผ่านใหม่
+ */
+export const resetPassword = async (resetToken, inputOtp, newPassword) => {
+    if (!newPassword || newPassword.length < 6) {
+        return { success: false, message: "รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร" };
+    }
+    let decoded;
+    try {
+        decoded = jwt.verify(resetToken, process.env.OTP_SECRET);
+    } catch (e) {
+        return { success: false, message: "คำขอหมดอายุหรือไม่ถูกต้อง กรุณาเริ่มใหม่" };
+    }
+    if (decoded.purpose !== "reset" || decoded.otp !== String(inputOtp)) {
+        return { success: false, message: "รหัส OTP ไม่ถูกต้อง" };
+    }
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    const ok = await studentRepo.updatePassword(decoded.studentId, hashed);
+    if (!ok) return { success: false, message: "ตั้งรหัสผ่านใหม่ไม่สำเร็จ" };
+
+    return { success: true, message: "ตั้งรหัสผ่านใหม่เรียบร้อยแล้ว เข้าสู่ระบบด้วยรหัสใหม่ได้เลย" };
+};
 
 // ==========================================
 // 📝 1. ระบบลงทะเบียน (Register) แบบ 5 ช่อง

@@ -7,13 +7,19 @@ import db from '../config/db.js';
 // 1. ลงทะเบียนนักเรียนใหม่ (เด็กกดสมัครเอง ใช้ INSERT)
 export const registerStudent = async (data) => {
     // รับข้อมูล 5 ช่อง (ไม่มี confirm_password เพราะ Service จัดการเช็คและทิ้งไปแล้ว)
-    const { student_id, student_name, student_class, end_year, password } = data;
+    const { student_id, student_name, student_class, end_year, password, student_email } = data;
+
+    // เติมช่องที่ Schema บังคับ NOT NULL ให้ครบ:
+    // - major / start_year ใช้ค่าเริ่มต้น (ยังไม่เก็บตอนสมัคร)
+    // - student_email ใช้อีเมลที่กรอก ถ้าไม่กรอกใช้ placeholder อิงรหัสนักเรียน (กัน UNIQUE ชนกัน)
+    //   ผู้ใช้กรอกอีเมลจริงอีกครั้งตอนขอ OTP เพื่อโหวต
+    const email = (student_email && student_email.trim()) || `${student_id}@student.local`;
 
     const [result] = await db.query(
         `INSERT INTO student (
-            student_id, student_name, student_class, end_year, password, student_status
-         ) VALUES (?, ?, ?, ?, ?, 'Active')`,
-        [student_id, student_name, student_class, end_year, password]
+            student_id, student_name, student_class, major, start_year, end_year, password, student_email, student_status
+         ) VALUES (?, ?, ?, 'N/A', 0, ?, ?, ?, 'Active')`,
+        [student_id, student_name, student_class, end_year, password, email]
     );
     return result.affectedRows > 0;
 };
@@ -25,12 +31,21 @@ export const registerStudent = async (data) => {
 // 2. ค้นหานักเรียนด้วย ID (ใช้ดึงข้อมูลมาเทียบรหัสตอนล็อกอิน)
 export const findById = async (studentId) => {
     const [rows] = await db.query(
-        `SELECT student_id, student_name, student_class, end_year, password, student_status 
-         FROM student 
+        `SELECT student_id, student_name, student_class, end_year, password, student_email, student_status
+         FROM student
          WHERE student_id = ?`,
         [studentId]
     );
-    return rows[0]; 
+    return rows[0];
+};
+
+// 2.5 อัปเดตรหัสผ่าน (ใช้ตอนรีเซ็ตรหัสผ่าน — รับค่าที่ Hash แล้ว)
+export const updatePassword = async (studentId, hashedPassword) => {
+    const [result] = await db.query(
+        "UPDATE student SET password = ? WHERE student_id = ?",
+        [hashedPassword, studentId]
+    );
+    return result.affectedRows > 0;
 };
 
 // 3. ดึงข้อมูลโปรไฟล์แบบย่อ (สำหรับโชว์มุมซ้ายล่างหน้าจอ)

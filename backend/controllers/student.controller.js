@@ -101,12 +101,57 @@ export const getProfile = async (req, res, next) => {
 export const getHomePageData = async (req, res, next) => {
     try {
         const result = await studentService.getHomeData();
-        
+
         res.status(200).json({
             status: "success",
             data: result.data
         });
     } catch (error) {
         next(error);
+    }
+};
+
+/**
+ * 5. ลืมรหัสผ่าน — ขอ OTP
+ * POST /api/students/forgot-password  { student_id, email }
+ */
+export const forgotPassword = async (req, res, next) => {
+    try {
+        const { student_id, email } = req.body || {};
+        if (!student_id || !email) {
+            return res.status(400).json({ status: "error", message: "กรุณากรอกรหัสนักเรียนและอีเมล" });
+        }
+        const result = await studentService.requestPasswordReset(student_id, email);
+        if (!result.success) {
+            return res.status(400).json({ status: "error", message: result.message });
+        }
+        res.status(200).json({
+            status: "success",
+            message: "ส่งรหัส OTP สำหรับรีเซ็ตรหัสผ่านไปยังอีเมลแล้ว",
+            resetToken: result.resetToken,
+            email: result.email,
+        });
+    } catch (error) {
+        res.status(error.status || 500).json({ status: "error", message: error.message });
+    }
+};
+
+/**
+ * 6. ลืมรหัสผ่าน — ยืนยัน OTP + ตั้งรหัสใหม่
+ * POST /api/students/reset-password  { resetToken, otp, new_password }
+ */
+export const resetPassword = async (req, res, next) => {
+    try {
+        const { resetToken, otp, new_password } = req.body || {};
+        if (!resetToken || !otp || !new_password) {
+            return res.status(400).json({ status: "error", message: "ข้อมูลไม่ครบถ้วน" });
+        }
+        const result = await studentService.resetPassword(resetToken, otp, new_password);
+        if (!result.success) {
+            return res.status(400).json({ status: "error", message: result.message });
+        }
+        res.status(200).json({ status: "success", message: result.message });
+    } catch (error) {
+        res.status(error.status || 500).json({ status: "error", message: error.message });
     }
 };

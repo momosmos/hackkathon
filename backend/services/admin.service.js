@@ -1,5 +1,7 @@
 import * as repository from "../repositories/admin.repository.js";
-import bcrypt from "bcrypt"; // 📌 [เพิ่มใหม่] Import ไลบรารีสำหรับ Hash รหัสผ่าน
+import * as voteRepo from "../repositories/vote.repository.js";
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
 
 // ==========================================
 // 🔑 1. Logic ระบบยืนยันตัวตนแอดมิน (Authentication)
@@ -10,27 +12,41 @@ export const loginAdmin = async (username, password) => {
 
     // 1. ถ้าไม่เจอแอดมินคนนี้ในระบบ
     if (!admin) {
-        return { 
-            success: false, 
-            message: "ไม่พบบัญชีผู้ดูแลระบบนี้ในระบบ" 
+        return {
+            success: false,
+            message: "ไม่พบบัญชีผู้ดูแลระบบนี้ในระบบ"
         };
     }
 
-    // 2. ตรวจสอบรหัสผ่าน
-    if (admin.password !== password) {
-        return { 
-            success: false, 
-            message: "รหัสผ่านไม่ถูกต้อง" 
+    // 2. ตรวจสอบรหัสผ่านผ่าน bcrypt (รหัสผ่านถูก Hash เก็บไว้ใน DB เสมอ)
+    //    เผื่อกรณีข้อมูลเก่าที่ยังเป็น plain text ให้รองรับแบบ fallback ด้วย
+    const looksHashed = typeof admin.password === "string" && admin.password.startsWith("$2");
+    const isMatch = looksHashed
+        ? await bcrypt.compare(password, admin.password)
+        : admin.password === password;
+
+    if (!isMatch) {
+        return {
+            success: false,
+            message: "รหัสผ่านไม่ถูกต้อง"
         };
     }
 
-    // 3. เตรียมข้อมูลส่งกลับหน้าบ้าน (ลบ password ออกเพื่อความปลอดภัย ไม่ให้หลุดไปที่ Frontend)
-    const { password: _, ...adminData } = admin;
-    
-    return { 
-        success: true, 
+    // 3. ออก JWT (role = admin) สำหรับใช้เรียก API ฝั่งผู้ดูแลระบบ
+    const token = jwt.sign(
+        { admin_id: admin.admin_id, username: admin.username, role: "admin" },
+        process.env.JWT_SECRET,
+        { expiresIn: "8h" }
+    );
+
+    // 4. เตรียมข้อมูลส่งกลับ (ตัด password ออกเพื่อความปลอดภัย)
+    const { password: _pw, ...adminData } = admin;
+
+    return {
+        success: true,
         message: "เข้าสู่ระบบแอดมินสำเร็จ",
-        data: adminData 
+        data: { ...adminData, role: "admin" },
+        token
     };
 };
 
@@ -58,6 +74,11 @@ export const addStudent = async (studentData) => {
 // [เพิ่มใหม่] ดึงรายชื่อนักเรียนและผู้สมัครทั้งหมด เพื่อส่งให้กล่องมุมซ้ายล่างหน้า Dashboard
 export const getAllMembersForAdmin = async () => {
     return await repository.getAllMembersForAdmin();
+};
+
+// ลบนักเรียน (คืนค่า true ถ้าลบสำเร็จ)
+export const deleteStudent = async (studentId) => {
+    return await repository.deleteStudent(studentId);
 };
 
 // ==========================================
@@ -102,19 +123,36 @@ export const updateCandidateStatus = async (candidateId, status) => {
     return await repository.updateCandidateStatus(candidateId, status);
 };
 
+// แก้ไขข้อมูลพรรค
+export const updateCandidate = async (candidateId, partyName, policyDetail) => {
+    return await repository.updateCandidate(candidateId, partyName, policyDetail);
+};
+
+// ลบพรรค
+export const deleteCandidate = async (candidateId) => {
+    return await repository.deleteCandidate(candidateId);
+};
+
+// อัปเดตการตั้งค่างานเลือกตั้ง (ชื่องาน + เวลาปิดหีบ)
+export const updateEventSettings = async (eventId, eventName, endDatetime) => {
+    return await repository.updateEventSettings(eventId, eventName, endDatetime);
+};
+
 // ==========================================
 // 📊 5. Logic รายงานผลแดชบอร์ดสถิติ (Analytics)
 // ==========================================
 export const getDashboardData = async (eventId) => {
-    // 1. ไปดึงยอดรวมจำนวนนักเรียนที่มาเช็คชื่อใช้สิทธิ์
-    const turnoutCount = await repository.getVoterTurnoutCount(eventId);
+    // 1. สถิติผู้มาใช้สิทธิ์ (เช็คชื่อจาก voter_participation เทียบนักเรียนทั้งหมด)
+    const stats = await voteRepo.getVoterStatistics(eventId);
 
-    // 2. 🚨 ไปดึงผลคะแนนโหวต (เวอร์ชันนี้ Repository จะทำการไขกุญแจ AES_DECRYPT ให้อัตโนมัติแล้ว)
-    const voteResults = await repository.getSecureVoteCount(eventId);
+    // 2. นับคะแนนรายเบอร์ด้วยการ Hash เบอร์ที่เป็นไปได้มาเทียบ (one-way ไม่ถอดกลับ)
+    const voteResults = await voteRepo.getVoteCounting(eventId);
 
-    // 3. มัดรวมเป็นก้อนข้อมูลก้อนเดียว (Object) เพื่อส่งกลับไปให้ Controller
+    // 3. มัดรวมส่งกลับให้ Controller
     return {
-        total_voters_turnout: turnoutCount,
+        total_voters_turnout: stats.voted,
+        total_eligible: stats.total,
+        turnout_percent: stats.total > 0 ? ((stats.voted / stats.total) * 100).toFixed(2) : "0.00",
         voting_results: voteResults
     };
 };

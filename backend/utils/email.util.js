@@ -1,20 +1,17 @@
-import nodemailer from "nodemailer";
+import { sendEmail } from "./emailHelper.js";
 
-const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: 'sasicha1214@gmail.com',
-        pass: 'password' // แนะนำให้ใช้ Environment Variable
-    },
-    tls: { rejectUnauthorized: false }
-});
-
+/**
+ * ส่งอีเมล OTP (ใช้ตัวช่วยกลางจาก emailHelper)
+ * - ถ้าตั้งค่า EMAIL_USER/EMAIL_PASS ใน .env => ส่งจริงผ่าน Gmail
+ * - ถ้าไม่ได้ตั้งค่า => โหมดสาธิต (log ลง console) ไม่ throw
+ */
 export const sendOTPEmail = async (email, otpCode) => {
-    const mailOptions = {
-        from: '"My Backend API" <poonpipat.siri@gmail.com>',
-        to: email,
-        subject: 'รหัส OTP ของคุณ',
-        html: `<h3>รหัส OTP สำหรับเข้าสู่ระบบคือ: <b>${otpCode}</b></h3><p>รหัสมีอายุ 3 นาที</p>`
-    };
-    return await transporter.sendMail(mailOptions);
+    return await sendEmail(
+        email,
+        "รหัส OTP ของคุณ",
+        `รหัส OTP สำหรับเข้าสู่ระบบคือ: ${otpCode}\nรหัสมีอายุ 3 นาที`
+    );
 };
+
+// เผื่อโค้ดส่วนอื่นเรียกชื่อนี้ (ลงทะเบียน/ยืนยันอีเมล)
+export const sendVerificationEmail = sendOTPEmail;

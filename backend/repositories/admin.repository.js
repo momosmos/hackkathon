@@ -16,10 +16,19 @@ export const getAdminByUsername = async (username) => {
 
 
 // ==========================================
-// 🎓 โซนที่ 1.5: จัดการนักเรียน (Student Management) 
+// 🎓 โซนที่ 1.5: จัดการนักเรียน (Student Management)
 // ==========================================
 
-// 2. แอดมินเพิ่มรายชื่อนักเรียน 
+// 2.5 แอดมินลบนักเรียนออกจากระบบ (FK ON DELETE CASCADE จะลบข้อมูลที่เกี่ยวข้องให้เอง)
+export const deleteStudent = async (studentId) => {
+    const [result] = await dbconnect1.query(
+        'DELETE FROM student WHERE student_id = ?',
+        [studentId]
+    );
+    return result.affectedRows > 0;
+};
+
+// 2. แอดมินเพิ่มรายชื่อนักเรียน
 export const addStudent = async (studentData) => {
     // 🚨 [อัปเดต] รับ password (ที่ถูกแฮชมาจาก Service) เข้ามาด้วย
     const { student_id, student_name, student_class, student_email, student_status, password } = studentData;
@@ -122,6 +131,33 @@ export const updateCandidateStatus = async (candidateId, status) => {
         [status, candidateId]
     );
     return result;
+};
+
+// 10.5 แก้ไขข้อมูลพรรค (ชื่อพรรค + นโยบาย)
+export const updateCandidate = async (candidateId, partyName, policyDetail) => {
+    const [result] = await dbconnect1.query(
+        'UPDATE candidate SET party_name = ?, policy_detail = ? WHERE candidate_id = ?',
+        [partyName, policyDetail, candidateId]
+    );
+    return result.affectedRows > 0;
+};
+
+// 10.6 ลบพรรคผู้สมัคร (FK ON DELETE CASCADE จะลบลูกทีมในพรรคให้เอง)
+export const deleteCandidate = async (candidateId) => {
+    const [result] = await dbconnect1.query(
+        'DELETE FROM candidate WHERE candidate_id = ?',
+        [candidateId]
+    );
+    return result.affectedRows > 0;
+};
+
+// 10.7 อัปเดตงานเลือกตั้ง (ชื่องาน + เวลาปิดหีบ) สำหรับนับถอยหลังที่แชร์ทุกผู้ใช้
+export const updateEventSettings = async (eventId, eventName, endDatetime) => {
+    const [result] = await dbconnect1.query(
+        'UPDATE election_event SET event_name = ?, end_datetime = ? WHERE event_id = ?',
+        [eventName, endDatetime, eventId]
+    );
+    return result.affectedRows > 0;
 };
 
 

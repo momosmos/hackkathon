@@ -17,3 +17,12 @@ export const saveChatLog = async (studentId, prompt, response) => {
     );
     return result.insertId;
 };
+
+// 3. ดึงประวัติการแชทของนักเรียนคนหนึ่ง (ใหม่สุดก่อน)
+export const getChatHistory = async (studentId) => {
+    const [rows] = await dbconnect1.query(
+        'SELECT chat_id, student_prompt, ai_response, chat_datetime FROM ai_recommendation WHERE student_id = ? ORDER BY chat_datetime DESC LIMIT 50',
+        [studentId]
+    );
+    return rows;
+};

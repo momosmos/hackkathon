@@ -21,7 +21,7 @@ let candidates = [
         grade: "ม.5",
         party: "พรรคพลังนักเรียนใหม่ (New Power Party)",
         slogan: "เพื่อมัธยมปลายยุคใหม่ มุ่งมั่นปรับปรุงเทคโนโลยีและการศึกษาเพื่อความเป็นเลิศทางวิชาการและวิชาชีพ",
-        avatar: "🎓",
+        avatar: "",
         policies: [
             "ปรับปรุงระบบการเชื่อมต่อ Wi-Fi ความเร็วสูงให้ครอบคลุมโรงเรียน 100%",
             "ริเริ่มสัปดาห์กีฬาและนวัตกรรมเพื่อส่งเสริมเด็กสายศิลป์และสายวิทย์อย่างสมดุล",
@@ -36,7 +36,7 @@ let candidates = [
         grade: "ม.5",
         party: "พรรคก้าวรุ่งพัฒนา (Step Up Party)",
         slogan: "สร้างพื้นที่ปลอดภัยและสนับสนุนความหลากหลาย เสริมสร้างความสุขและเสียงของทุกคนมีความหมายเท่าเทียม",
-        avatar: "🌱",
+        avatar: "",
         policies: [
             "ก่อตั้งกลุ่มประคับประคองและสนับสนุนสุขภาพจิตโดยมีผู้เชี่ยวชาญให้คำแนะนำประจำสัปดาห์",
             "ยกเครื่องห้องสมุดและห้องเรียนกิจกรรมสร้างสรรค์ให้เป็น Co-working Space สบายๆ ยุคใหม่",
@@ -51,7 +51,7 @@ let candidates = [
         grade: "ม.5",
         party: "พรรครวมมิตรกิจกรรม (Harmony Team)",
         slogan: "สร้างรอยยิ้ม ความสุข และมิตรภาพ สนับสนุนกิจกรรมกีฬา ศิลปะดนตรีอย่างจัดเต็มไม่มีอั้น",
-        avatar: "🎸",
+        avatar: "",
         policies: [
             "จัดการแข่งขันกีฬา Esports, ฟุตซอล และบาสเกตบอลชิงแชมป์สโมสรภายในโรงเรียน",
             "อนุญาตให้เปิดเวทีดนตรีกลางสนามเพื่อโชว์ความสามารถศิลปะการแสดงช่วงพักเที่ยงของสัปดาห์",
@@ -64,8 +64,8 @@ let candidates = [
 
 // บันทึก Log การลงคะแนนป้องกันการทุจริต
 let auditLogs = [
-    { timestamp: "19 พ.ค. 2026, 10:14:32", voterId: "10001", status: "สำเร็จ (บันทึกเข้ารหัสคีย์นิรนามเรียบร้อย)" },
-    { timestamp: "19 พ.ค. 2026, 10:28:11", voterId: "10002", status: "สำเร็จ (บันทึกเข้ารหัสคีย์นิรนามเรียบร้อย)" }
+    { timestamp: "28 พ.ค. 2569, 10:14:32", voterId: "10001", status: "สำเร็จ (บันทึกเข้ารหัสคีย์นิรนามเรียบร้อย)" },
+    { timestamp: "28 พ.ค. 2569, 10:28:11", voterId: "10002", status: "สำเร็จ (บันทึกเข้ารหัสคีย์นิรนามเรียบร้อย)" }
 ];
 
 // สถานะการเข้าใช้ระบบปัจจุบัน
@@ -75,10 +75,19 @@ let currentTab = "home";
 let isElectionOpen = true;
 let selectedCandidateToVote = null;
 
+// สถานะที่ดึงจาก Backend
+let currentEventId = null;     // event_id ของงานที่กำลังแสดง
+let currentVoteToken = null;   // voteToken (ถือ OTP) ที่ได้จาก /request-otp
+let currentEnteredOtp = null;  // OTP 6 หลักที่ผู้ใช้กรอก
+
 // === 2. EVENT LISTENERS & TAB CONTROLLER ===
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
     lucide.createIcons();
+    restoreSession();
+    await loadElectionData();
     updateUI();
+    // เปิดหน้าให้ตรงกับ URL (#hash) ถ้ามี
+    routeFromHash();
 
     const chatInput = document.getElementById("chat-input");
     if (chatInput) {
@@ -88,7 +97,85 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
     }
+
+    // อัปเดตสถานะอัตโนมัติทุก 15 วินาที — เมื่อแอดมินปิดหีบ หน้าผู้ใช้ที่เปิดค้างไว้
+    // จะเปลี่ยนเป็นสถานะปิด (แถบแดง + คูหาปิด) เองโดยไม่ต้องรีเฟรช
+    setInterval(async () => {
+        const wasOpen = isElectionOpen;
+        await loadElectionData();
+        // อัปเดต UI เฉพาะเมื่อสถานะเปลี่ยน หรือยังอยู่หน้าหลัก/ผล (กันรีเฟรชถี่เกินจำเป็น)
+        if (wasOpen !== isElectionOpen || currentTab === "home" || currentTab === "results") {
+            updateUI();
+            if (wasOpen && !isElectionOpen) {
+                showAdminToast("ปิดหีบรับคะแนนแล้ว — ระบบลงคะแนนปิดทันที");
+            }
+        }
+    }, 8000);
 });
+
+// คืนสถานะผู้ใช้จาก localStorage (กันรีเฟรชแล้วหลุด)
+function restoreSession() {
+    const u = ApiClient.Auth.getUser();
+    if (u && ApiClient.Auth.getToken()) currentUser = u;
+}
+
+// แปลงข้อมูลผู้สมัครจาก Backend -> รูปแบบที่หน้าบ้านใช้
+function mapCandidate(c, voteMap) {
+    const policies = (c.policy_detail || "").split("\n").map(s => s.trim()).filter(Boolean);
+    return {
+        id: c.candidate_no,
+        candidate_id: c.candidate_id,
+        name: c.party_name,
+        grade: "",
+        party: c.party_name,
+        slogan: policies[0] || c.party_name,
+        avatar: "",
+        policies,
+        votes: voteMap ? (voteMap[c.candidate_no] || 0) : 0,
+        approved: (c.candidate_status || "Active") === "Active",
+    };
+}
+
+// ดึงข้อมูลการเลือกตั้ง (ผู้สมัคร + สถิติ + สถานะเปิด/ปิด) จาก Backend
+async function loadElectionData() {
+    try {
+        const res = await ApiClient.getDashboard();
+        const d = res.data || {};
+        currentEventId = d.event_info ? d.event_info.event_id : null;
+        isElectionOpen = Boolean(d.is_open);
+        if (d.event_info && d.event_info.event_name) {
+            electionTitle = d.event_info.event_name;
+        }
+
+        // นับถอยหลังที่แอดมินตั้งไว้ (เวลาปิดหีบจาก DB) — แสดงให้ผู้ใช้ทุกคนเห็น
+        electionCloseTime = (d.event_info && d.event_info.end_datetime)
+            ? new Date(d.event_info.end_datetime) : null;
+        if (isElectionOpen && electionCloseTime) {
+            startCountdown();
+        } else {
+            stopCountdown();
+        }
+
+        // ถ้าปิดหีบแล้ว ดึงคะแนนรายเบอร์มาแสดงด้วย
+        let voteMap = null;
+        try {
+            const r = await ApiClient.getResults();
+            const rd = r.data || {};
+            if (rd.is_closed && Array.isArray(rd.results)) {
+                voteMap = {};
+                rd.results.forEach(x => { voteMap[x.candidate_no] = x.total_votes; });
+            }
+            if (rd.statistics) window.__turnout = rd.statistics;
+        } catch (_) { /* ไม่เป็นไร */ }
+
+        candidates = (d.candidates || []).map(c => mapCandidate(c, voteMap));
+
+        // เก็บสถิติ turnout ไว้ให้ updateUI ใช้
+        window.__stats = d.statistics || null;
+    } catch (err) {
+        console.error("loadElectionData error:", err);
+    }
+}
 
 function switchTab(tabId) {
     currentTab = tabId;
@@ -107,7 +194,52 @@ function switchTab(tabId) {
     if (tabId === "candidate-panel") {
         loadCurrentCandidateData();
     }
+    if (tabId === "admin") {
+        loadAdminStudents();
+    }
+    // หน้าหลัก/ผลการเลือกตั้ง: ดึงข้อมูลล่าสุดเสมอ เพื่อให้กราฟผล/สถิติอัปเดตทันทีเมื่อปิดหีบ
+    if (tabId === "results" || tabId === "home") {
+        loadElectionData().then(updateUI);
+    }
+
+    // ซิงก์กับ URL เสมอ (เปลี่ยนหน้า = เปลี่ยน #hash ใน address bar รองรับปุ่ม Back/Forward)
+    if (location.hash !== "#" + tabId) {
+        location.hash = tabId;
+    }
     updateUI();
+}
+
+// เปิดหน้าตามค่า #hash ใน URL (ใช้ตอนโหลดครั้งแรกและตอนกดปุ่มย้อนกลับของเบราว์เซอร์)
+const VALID_TABS = ["home", "candidates", "results", "chatbot", "candidate-panel", "admin"];
+function routeFromHash() {
+    let t = (location.hash || "").replace("#", "") || "home";
+    if (!VALID_TABS.includes(t)) t = "home";
+    // หน้า admin / candidate-panel ต้องล็อกอินสิทธิ์ที่เหมาะสมก่อน
+    if (t === "admin" && (!currentUser || currentUser.role !== "admin")) t = "home";
+    if (t === "candidate-panel" && !currentUser) t = "home";
+    if (t !== currentTab) switchTab(t);
+}
+
+// กดปุ่ม Back/Forward หรือแก้ #hash เอง -> เปลี่ยนหน้าให้ตรง
+window.addEventListener("hashchange", routeFromHash);
+
+// ดึงรายชื่อนักเรียน/ผู้สมัครจาก Backend มาแสดงในตารางแอดมิน
+async function loadAdminStudents() {
+    if (!currentUser || currentUser.role !== "admin") return;
+    try {
+        const rows = await ApiClient.adminGetStudents();
+        students = (rows || []).map(r => ({
+            id: r.student_id,
+            name: r.student_name,
+            grade: r.student_class,
+            role: "student",
+            member_type: r.member_type,
+        }));
+        renderAdminPanel();
+        lucide.createIcons();
+    } catch (err) {
+        console.error("loadAdminStudents error:", err);
+    }
 }
 
 function scrollToRules() {
@@ -159,6 +291,7 @@ function switchAuthTab(type) {
     const tabAdmin = document.getElementById("tab-auth-admin");
     const passwordLabel = document.getElementById("auth-password-label");
     const registerLink = document.getElementById("auth-register-link");
+    const forgotLink = document.getElementById("auth-forgot-link");
     const btnText = document.getElementById("auth-btn-text");
 
     // clear errors on switch
@@ -189,6 +322,7 @@ function switchAuthTab(type) {
             if (passwordLabel) passwordLabel.innerText = "รหัสผ่าน";
             if (btnText) btnText.innerText = "เข้าสู่ระบบตอนนี้";
             if (registerLink) registerLink.classList.remove("hidden");
+            if (forgotLink) forgotLink.classList.remove("hidden");
         } else {
             // admin tab
             tabAdmin.classList.add("border-blue-600", "text-blue-600");
@@ -200,6 +334,7 @@ function switchAuthTab(type) {
             if (passwordLabel) passwordLabel.innerText = "รหัสผ่านแอดมิน";
             if (btnText) btnText.innerText = "เข้าสู่ระบบแอดมิน";
             if (registerLink) registerLink.classList.add("hidden");
+            if (forgotLink) forgotLink.classList.add("hidden");
         }
     }
     lucide.createIcons();
@@ -245,54 +380,42 @@ function calcGraduationYear() {
     if (hintEl) hintEl.classList.add("hidden");
 }
 
-// === LOGIN SUBMIT (นักเรียน + แอดมิน) ===
-function handleAuthSubmit(e) {
+// === LOGIN SUBMIT (นักเรียน + แอดมิน) — เชื่อม Backend จริง ===
+async function handleAuthSubmit(e) {
     e.preventDefault();
-    const studentId = document.getElementById("auth-student-id").value.trim();
+    const idVal = document.getElementById("auth-student-id").value.trim();
     const password = document.getElementById("auth-password").value;
     const errorMsgDiv = document.getElementById("auth-error-msg");
     const errorTextSpan = document.getElementById("auth-error-text");
     errorMsgDiv.classList.add("hidden");
 
-    if (studentId.length !== 5) {
-        errorTextSpan.innerText = "รหัสนักเรียนต้องประกอบด้วยตัวเลข 5 หลักเท่านั้น";
-        errorMsgDiv.classList.remove("hidden");
-        return;
-    }
-    if (!password) {
-        errorTextSpan.innerText = "กรุณากรอกรหัสผ่าน";
-        errorMsgDiv.classList.remove("hidden");
-        return;
-    }
+    const showErr = (msg) => { errorTextSpan.innerText = msg; errorMsgDiv.classList.remove("hidden"); };
 
-    const foundUser = students.find(s => s.id === studentId);
-    if (!foundUser) {
-        errorTextSpan.innerText = "ไม่พบรหัสนักเรียนนี้ในฐานข้อมูล กรุณาลงทะเบียนก่อน";
-        errorMsgDiv.classList.remove("hidden");
-        return;
-    }
+    if (!idVal) { showErr(authTab === "admin" ? "กรุณากรอกชื่อผู้ใช้แอดมิน" : "กรุณากรอกรหัสนักเรียน"); return; }
+    if (!password) { showErr("กรุณากรอกรหัสผ่าน"); return; }
 
-    // ตรวจสอบ role: แท็บแอดมินต้องเป็น admin เท่านั้น
-    if (authTab === "admin" && foundUser.role !== "admin") {
-        errorTextSpan.innerText = "บัญชีนี้ไม่มีสิทธิ์เข้าสู่ระบบแอดมิน";
-        errorMsgDiv.classList.remove("hidden");
-        return;
+    try {
+        if (authTab === "admin") {
+            // เข้าสู่ระบบแอดมิน (ตรวจรหัสผ่าน bcrypt ฝั่ง Backend + ออก JWT role=admin)
+            const res = await ApiClient.loginAdmin(idVal, password);
+            ApiClient.Auth.setToken(res.token);
+            currentUser = { id: res.data.username, name: res.data.admin_name || res.data.username, grade: "ผู้ดูแลระบบ", role: "admin" };
+        } else {
+            if (idVal.length !== 5) { showErr("รหัสนักเรียนต้องเป็นตัวเลข 5 หลัก"); return; }
+            // เข้าสู่ระบบนักเรียน (ตรวจรหัสผ่าน bcrypt ฝั่ง Backend + ออก JWT)
+            const res = await ApiClient.loginStudent(idVal, password);
+            ApiClient.Auth.setToken(res.data.token);
+            const s = res.data.student;
+            currentUser = { id: s.student_id, name: s.student_name, grade: s.student_class, role: "student", voted: false };
+        }
+        ApiClient.Auth.setUser(currentUser);
+        closeAuthModal();
+        await loadElectionData();
+        updateUI();
+        if (currentUser.role === "admin") loadAdminStudents();
+    } catch (err) {
+        showErr(err.message || "เข้าสู่ระบบไม่สำเร็จ");
     }
-    if (authTab === "student" && foundUser.role === "admin") {
-        errorTextSpan.innerText = "กรุณาใช้แท็บแอดมินเพื่อเข้าสู่ระบบ";
-        errorMsgDiv.classList.remove("hidden");
-        return;
-    }
-
-    if (foundUser.password && foundUser.password !== password) {
-        errorTextSpan.innerText = "รหัสผ่านไม่ถูกต้อง กรุณาลองอีกครั้ง";
-        errorMsgDiv.classList.remove("hidden");
-        return;
-    }
-
-    currentUser = foundUser;
-    closeAuthModal();
-    updateUI();
 }
 
 // === REGISTER SUBMIT (นักเรียนใหม่) ===
@@ -339,25 +462,31 @@ function handleRegisterSubmit(e) {
         setTimeout(() => confirmEl.classList.remove("border-red-400"), 800);
         return;
     }
-    if (students.some(s => s.id === studentId)) {
-        errorTextSpan.innerText = "รหัสนักเรียนนี้เคยทำการลงทะเบียนเรียบร้อยแล้ว";
-        errorMsgDiv.classList.remove("hidden");
-        return;
-    }
-    const newStudent = {
-        id: studentId,
-        name: nameInput,
-        grade: gradeInput,
-        role: "student",
-        password: password,
-        gradYear: gradYear,
-        voted: false,
-        candidateApproved: false
-    };
-    students.push(newStudent);
-    currentUser = newStudent;
-    closeAuthModal();
-    updateUI();
+    // ส่งไปลงทะเบียนที่ Backend (Hash รหัสผ่านด้วย bcrypt ฝั่งเซิร์ฟเวอร์) แล้วล็อกอินอัตโนมัติ
+    (async () => {
+        try {
+            await ApiClient.registerStudent({
+                student_id: studentId,
+                student_name: nameInput,
+                student_class: gradeInput,
+                end_year: gradYear,
+                password,
+                confirm_password: confirmPassword,
+            });
+            // ลงทะเบียนสำเร็จ -> ล็อกอินทันที
+            const res = await ApiClient.loginStudent(studentId, password);
+            ApiClient.Auth.setToken(res.data.token);
+            const s = res.data.student;
+            currentUser = { id: s.student_id, name: s.student_name, grade: s.student_class, role: "student", voted: false };
+            ApiClient.Auth.setUser(currentUser);
+            closeAuthModal();
+            await loadElectionData();
+            updateUI();
+        } catch (err) {
+            errorTextSpan.innerText = err.message || "ลงทะเบียนไม่สำเร็จ";
+            errorMsgDiv.classList.remove("hidden");
+        }
+    })();
 }
 
 // === PASSWORD VISIBILITY & STRENGTH ===
@@ -450,6 +579,7 @@ function onPasswordInput() {
 
 function logout() {
     currentUser = null;
+    ApiClient.Auth.clear();
     document.getElementById("tab-candidate-panel").classList.add("hidden");
     document.getElementById("tab-admin").classList.add("hidden");
     if (currentTab === "candidate-panel" || currentTab === "admin") {
@@ -465,36 +595,47 @@ function updateUI() {
     const dot = document.getElementById("nav-election-status-dot");
     const statusText = document.getElementById("nav-election-status");
     const votingBadge = document.getElementById("voting-badge-status");
+    const navPill = document.getElementById("nav-status-pill");
 
     if (isElectionOpen) {
         dot.className = "w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse";
         statusText.innerText = "เปิดลงคะแนนอยู่";
+        statusText.className = "text-emerald-100 font-medium";
+        if (navPill) navPill.className = "flex items-center space-x-2 bg-emerald-700 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors";
         votingBadge.className = "bg-emerald-100 text-emerald-800 text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1";
         votingBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> เปิดให้ลงคะแนน`;
     } else {
-        dot.className = "w-2.5 h-2.5 rounded-full bg-red-500";
-        statusText.innerText = "ปิดการลงคะแนนแล้ว";
+        // ปิดหีบ -> แถบสถานะมุมขวาเป็นสีแดงชัดเจน
+        dot.className = "w-2.5 h-2.5 rounded-full bg-white";
+        statusText.innerText = "ปิดการลงคะแนนเสียงแล้ว";
+        statusText.className = "text-white font-bold";
+        if (navPill) navPill.className = "flex items-center space-x-2 bg-red-600 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors shadow-lg ring-2 ring-red-300/50";
         votingBadge.className = "bg-red-100 text-red-800 text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1";
         votingBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-red-500"></span> ปิดรับสิทธิ์โหวต`;
+    }
+
+    // แบนเนอร์แดงเต็มหน้าจอเมื่อปิดหีบ + ซ่อนแบนเนอร์นับถอยหลัง
+    const closedBanner = document.getElementById("election-closed-banner");
+    const countdownBanner = document.getElementById("election-countdown-banner");
+    if (!isElectionOpen) {
+        if (closedBanner) closedBanner.classList.remove("hidden");
+        if (countdownBanner) countdownBanner.classList.add("hidden");
+    } else {
+        if (closedBanner) closedBanner.classList.add("hidden");
     }
     /* =========================
        REALTIME VOTE PERCENT
     ========================= */
 
-    // จำนวนนักเรียนทั้งหมดและผู้มีสิทธิ์เลือกตั้ง (กำหนดไว้ 2000 คน)
-    const totalStudents = TOTAL_ELIGIBLE_VOTERS;
-
-    // จำนวนคนที่โหวตแล้ว (รวม no-vote)
-    const totalVoted = students.filter(student => student.voted).length;
-
-    // คิดเปอร์เซ็นต์เทียบกับนักเรียนทั้งหมด 2000 คน
-    const percent =
-        totalStudents > 0
-            ? ((totalVoted / totalStudents) * 100).toFixed(2)
-            : 0;
-
-    // จำนวนคนงดออกเสียง
-    const noVoteCount = students.filter(s => s.voted && s.votedFor === "no-vote").length;
+    // สถิติจาก Backend (ถ้ามี) มิฉะนั้น fallback เป็นการคำนวณจากข้อมูลในหน่วยความจำ
+    const stats = window.__stats;
+    const totalStudents = stats ? Number(stats.total_eligible) : TOTAL_ELIGIBLE_VOTERS;
+    const totalVoted = stats ? Number(stats.voted_count) : students.filter(s => s.voted).length;
+    const percent = stats
+        ? Number(stats.percent_voted)
+        : (totalStudents > 0 ? ((totalVoted / totalStudents) * 100).toFixed(2) : 0);
+    // งดออกเสียง = ผู้กดงดออกเสียงจริง (เริ่มต้น 0 เพิ่มตามจริง) จาก backend
+    const noVoteCount = stats ? Number(stats.abstain_count || 0) : 0;
 
     // อัปเดตการ์ดสถิติด่วน (หน้าหลัก)
     document.getElementById("stat-total-votes").innerText = totalVoted;
@@ -641,6 +782,24 @@ function renderUserStatusCard() {
 
 function renderVotingArea() {
     const area = document.getElementById("voting-area");
+
+    // ✅ เช็ก "ปิดหีบ" ก่อนเสมอ — ไม่ว่าจะล็อกอินหรือยัง ต้องเห็นสถานะปิดหีบสีแดง
+    if (!isElectionOpen) {
+        area.innerHTML = `
+      <div class="text-center py-10 bg-red-50 rounded-xl border-2 border-red-200 text-red-900">
+        <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <i data-lucide="lock" class="w-9 h-9 text-red-600"></i>
+        </div>
+        <h4 class="font-bold text-xl mb-1">ปิดหีบรับคะแนนแล้ว</h4>
+        <p class="text-sm text-red-700 mb-4 max-w-sm mx-auto">ขณะนี้ระบบปิดรับการลงคะแนนเสียง ไม่สามารถโหวตได้</p>
+        <button onclick="switchTab('results')" class="bg-red-600 hover:bg-red-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition shadow-lg mx-auto">
+          ดูสรุปผลคะแนน
+        </button>
+      </div>
+    `;
+        return;
+    }
+
     if (!currentUser) {
         area.innerHTML = `
       <div class="text-center py-10 bg-slate-50 rounded-xl border border-dashed border-slate-200">
@@ -649,20 +808,6 @@ function renderVotingArea() {
         <p class="text-xs text-slate-400 mb-4 max-w-sm mx-auto">ทางสภานักเรียนกำหนดสิทธิ์เฉพาะนักเรียนที่ระบุตัวตนถูกต้องเท่านั้น</p>
         <button onclick="openAuthModal()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition shadow-lg flex items-center gap-1.5 mx-auto">
           <i data-lucide="log-in" class="w-4 h-4"></i> ลงทะเบียนสิทธิ์ / เข้าสู่ระบบ
-        </button>
-      </div>
-    `;
-        return;
-    }
-
-    if (!isElectionOpen) {
-        area.innerHTML = `
-      <div class="text-center py-10 bg-red-50 rounded-xl border border-red-100 text-red-900">
-        <i data-lucide="calendar-off" class="w-12 h-12 text-red-500 mx-auto mb-3"></i>
-        <h4 class="font-bold text-lg mb-1">ปิดรับการลงคะแนนการเลือกตั้งเรียบร้อย</h4>
-        <p class="text-xs text-red-700 mb-4 max-w-sm mx-auto">ทางคุณครูสภานักเรียนได้ปิดการรับเรื่องคะแนนเป็นทางการแล้ว</p>
-        <button onclick="switchTab('results')" class="bg-red-600 hover:bg-red-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition shadow-lg mx-auto">
-          คลิกดูสรุปคะแนนผู้ชนะ
         </button>
       </div>
     `;
@@ -691,7 +836,7 @@ function renderVotingArea() {
         listHTML += `
       <div class="border border-slate-200 rounded-xl p-4 flex flex-col justify-between hover:border-blue-500 hover:shadow-md transition bg-white">
         <div class="flex items-center gap-3">
-          <span class="text-3xl">${cand.avatar || '🎓'}</span>
+          <span class="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0"><i data-lucide="user-round" class="w-6 h-6"></i></span>
           <div>
             <span class="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full">หมายเลข ${cand.id}</span>
             <h4 class="font-bold text-slate-800 text-sm mt-1 leading-tight">${cand.name}</h4>
@@ -767,7 +912,7 @@ function renderCandidatesGrid() {
       <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 hover:shadow-lg transition-all duration-300 flex flex-col justify-between">
         <div>
           <div class="flex items-start justify-between mb-4">
-            <span class="text-4xl p-3 bg-blue-50 rounded-2xl">${cand.avatar || '🎓'}</span>
+            <span class="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center"><i data-lucide="user-round" class="w-7 h-7"></i></span>
             <span class="bg-blue-900 text-white font-bold px-3 py-1.5 rounded-xl text-xs shadow-sm">เบอร์ ${cand.id}</span>
           </div>
           <h3 class="text-lg font-bold text-slate-900 leading-tight">${cand.name} (${cand.grade})</h3>
@@ -780,6 +925,15 @@ function renderCandidatesGrid() {
             ดูนโยบายโดดเด่น <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
           </button>
         </div>
+        ${currentUser && currentUser.role === "admin" ? `
+        <div class="mt-3 pt-3 border-t border-dashed border-slate-200 flex items-center gap-2">
+          <button onclick="openEditPartyModal(${cand.candidate_id})" class="flex-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold py-1.5 rounded-lg transition flex items-center justify-center gap-1">
+            <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> แก้ไขพรรค
+          </button>
+          <button onclick="deleteParty(${cand.candidate_id}, '${(cand.party || '').replace(/'/g, "\\'")}')" class="flex-1 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold py-1.5 rounded-lg transition flex items-center justify-center gap-1">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> ลบพรรค
+          </button>
+        </div>` : ''}
       </div>
     `;
     });
@@ -809,10 +963,13 @@ function renderWinnerResults() {
     const approvedCands = candidates.filter(c => c.approved);
     const sorted = [...approvedCands].sort((a, b) => b.votes - a.votes);
     const totalCandVotes = sorted.reduce((s, c) => s + c.votes, 0);
-    const noVoteCount = students.filter(s => s.voted && s.votedFor === "no-vote").length;
+    // งดออกเสียง จาก backend (จำนวนบัตรที่กดงดออกเสียงจริง)
+    const noVoteCount = Number((window.__stats && window.__stats.abstain_count) || 0);
     const totalAllVotes = totalCandVotes + noVoteCount;
 
-    const medals = ["🥇", "🥈", "🥉"];
+    const rankColors = ["text-amber-500", "text-slate-400", "text-amber-700"];
+    const medals = rankColors.map(c => `<i data-lucide="medal" class="w-7 h-7 ${c}"></i>`);
+    const rankBadge = (idx) => medals[idx] || `<span class="w-7 h-7 rounded-full bg-slate-200 text-slate-600 text-xs font-bold flex items-center justify-center">${idx + 1}</span>`;
     const barColors = ["bg-amber-400", "bg-slate-400", "bg-amber-700", "bg-blue-500", "bg-indigo-500"];
 
     // --- ลำดับผู้ชนะ ---
@@ -826,12 +983,12 @@ function renderWinnerResults() {
             const isWinner = idx === 0 && cand.votes > 0;
             return `
         <div class="flex items-center gap-4 p-4 rounded-2xl border ${isWinner ? 'border-amber-300 bg-amber-50' : 'border-slate-100 bg-slate-50'}">
-          <span class="text-3xl">${medals[idx] || `#${idx + 1}`}</span>
+          <span class="flex items-center justify-center w-9">${rankBadge(idx)}</span>
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2 flex-wrap">
               <span class="font-bold text-slate-900 text-sm">${cand.name}</span>
               <span class="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">เบอร์ ${cand.id}</span>
-              ${isWinner ? `<span class="text-[10px] bg-amber-400 text-amber-900 px-2 py-0.5 rounded-full font-bold animate-pulse">🏆 ผู้ชนะ!</span>` : ''}
+              ${isWinner ? `<span class="text-[10px] bg-amber-400 text-amber-900 px-2 py-0.5 rounded-full font-bold animate-pulse inline-flex items-center gap-1"><i data-lucide="trophy" class="w-3 h-3"></i> ผู้ชนะ!</span>` : ''}
             </div>
             <span class="text-xs text-slate-500">${cand.party}</span>
           </div>
@@ -852,7 +1009,7 @@ function renderWinnerResults() {
         return `
       <div>
         <div class="flex justify-between text-xs font-semibold text-slate-600 mb-1">
-          <span>${medals[idx] || `#${idx + 1}`} ${cand.name} <span class="text-slate-400 font-normal">(เบอร์ ${cand.id})</span></span>
+          <span class="inline-flex items-center gap-1.5">${rankBadge(idx)} ${cand.name} <span class="text-slate-400 font-normal">(เบอร์ ${cand.id})</span></span>
           <span>${cand.votes.toLocaleString()} คะแนน — ${pct}%</span>
         </div>
         <div class="w-full h-4 bg-slate-100 rounded-full overflow-hidden">
@@ -868,7 +1025,7 @@ function renderWinnerResults() {
         barsHTML += `
       <div>
         <div class="flex justify-between text-xs font-semibold text-slate-500 mb-1">
-          <span>🚫 งดออกเสียง</span>
+          <span class="inline-flex items-center gap-1.5"><i data-lucide="ban" class="w-3.5 h-3.5"></i> งดออกเสียง</span>
           <span>${noVoteCount.toLocaleString()} คน — ${novPct}%</span>
         </div>
         <div class="w-full h-4 bg-slate-100 rounded-full overflow-hidden">
@@ -971,7 +1128,7 @@ function openPolicyModal(candId) {
         <i data-lucide="x" class="w-5 h-5"></i>
       </button>
       <div class="flex items-center gap-4">
-        <span class="text-4xl p-3 bg-white/10 rounded-2xl">${cand.avatar || '🎓'}</span>
+        <span class="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center"><i data-lucide="user-round" class="w-7 h-7"></i></span>
         <div>
           <span class="bg-blue-600 text-blue-100 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase">ผู้สมัครพรรค เบอร์ ${cand.id}</span>
           <h3 class="text-xl font-bold mt-1">${cand.name} (${cand.grade})</h3>
@@ -1015,25 +1172,32 @@ function closeVoteConfirmModal() {
     selectedCandidateToVote = null;
 }
 
-function executeVote() {
+async function executeVote() {
     if (!currentUser || selectedCandidateToVote === null) return;
-    if (selectedCandidateToVote !== "no-vote") {
-        const cand = candidates.find(c => c.id === selectedCandidateToVote);
-        if (cand) cand.votes += 1;
-    }
-    const studentIdx = students.findIndex(s => s.id === currentUser.id);
-    if (studentIdx !== -1) {
-        students[studentIdx].voted = true;
-        students[studentIdx].votedFor = selectedCandidateToVote;
+
+    // 'no-vote' (งดออกเสียง) ส่งเป็นค่า 'novote' — นับเป็นผู้มาใช้สิทธิ์ แต่ไม่ตรงเบอร์ใด
+    const candidateNo = selectedCandidateToVote === "no-vote" ? "novote" : selectedCandidateToVote;
+
+    try {
+        const res = await ApiClient.submitVote(candidateNo, currentEnteredOtp, currentVoteToken);
         currentUser.voted = true;
         currentUser.votedFor = selectedCandidateToVote;
+        ApiClient.Auth.setUser(currentUser);
+        currentVoteToken = null;
+        currentEnteredOtp = null;
+        closeVoteConfirmModal();
+        await loadElectionData();
+        updateUI();
+        showAdminToast("ลงคะแนนสำเร็จ! รหัสใบเสร็จ: " + (res.receipt || ""));
+    } catch (err) {
+        closeVoteConfirmModal();
+        if (err.status === 409) {
+            currentUser.voted = true;
+            ApiClient.Auth.setUser(currentUser);
+            updateUI();
+        }
+        showAdminToast(err.message || "ลงคะแนนไม่สำเร็จ กรุณาลองใหม่");
     }
-    const padTwo = (val) => String(val).padStart(2, '0');
-    const now = new Date();
-    const timeString = `${now.getDate()} พ.ค. 2026, ${padTwo(now.getHours())}:${padTwo(now.getMinutes())}:${padTwo(now.getSeconds())}`;
-    auditLogs.unshift({ timestamp: timeString, voterId: currentUser.id, status: "สำเร็จ (บันทึกเข้ารหัสคีย์นิรนามเรียบร้อย)" });
-    closeVoteConfirmModal();
-    updateUI();
 }
 
 // === OTP EMAIL VERIFICATION ===
@@ -1066,7 +1230,7 @@ function clearOtpEmailError() {
     document.getElementById("otp-email-error").classList.add("hidden");
 }
 
-function sendOtp() {
+async function sendOtp() {
     const emailInput = document.getElementById("otp-email-input").value.trim();
     const errorDiv = document.getElementById("otp-email-error");
     const errorText = document.getElementById("otp-email-error-text");
@@ -1086,29 +1250,33 @@ function sendOtp() {
     }
 
     otpEmail = emailInput;
-    // Generate 6-digit OTP
-    otpCode = String(Math.floor(100000 + Math.random() * 900000));
     otpExpired = false;
 
-    // Simulate sending (in real system, call API here)
     const btn = document.getElementById("otp-send-btn");
     const btnText = document.getElementById("otp-send-btn-text");
     btn.disabled = true;
     btn.classList.add("opacity-75", "cursor-not-allowed");
     btnText.innerText = "กำลังส่ง OTP...";
 
-    setTimeout(() => {
-        btn.disabled = false;
-        btn.classList.remove("opacity-75", "cursor-not-allowed");
-        btnText.innerText = "ส่งรหัส OTP ไปยังอีเมล";
+    try {
+        // ขอ OTP จาก Backend (ออก voteToken ที่ถือ OTP ไว้ + ส่งอีเมลจริงถ้าตั้งค่าไว้)
+        const res = await ApiClient.requestOtp(emailInput);
+        currentVoteToken = res.voteToken;
+
+        // โหมดสาธิต: Backend ส่ง devOtp กลับมาให้โชว์บนหน้าจอ (ถ้าตั้งค่าอีเมลจริงจะเป็น null)
+        const devHint = document.getElementById("otp-dev-hint");
+        if (res.devOtp) {
+            document.getElementById("otp-dev-code").innerText = res.devOtp;
+            if (devHint) devHint.classList.remove("hidden");
+        } else if (devHint) {
+            devHint.classList.add("hidden");
+        }
 
         // Switch to verify step
         document.getElementById("otp-step-email").classList.add("hidden");
         document.getElementById("otp-step-verify").classList.remove("hidden");
-        document.getElementById("otp-sent-to-email").innerText = otpEmail;
-        document.getElementById("otp-dev-code").innerText = otpCode;
+        document.getElementById("otp-sent-to-email").innerText = res.email || otpEmail;
 
-        // Reset digit inputs
         document.querySelectorAll(".otp-digit").forEach(inp => {
             inp.value = "";
             inp.classList.remove("is-filled", "is-error");
@@ -1120,22 +1288,42 @@ function sendOtp() {
         startOtpCountdown(300);
         lucide.createIcons();
         document.querySelectorAll(".otp-digit")[0].focus();
-    }, 1000);
+    } catch (err) {
+        errorText.innerText = err.message || "ขอรหัส OTP ไม่สำเร็จ";
+        errorDiv.classList.remove("hidden");
+        lucide.createIcons();
+    } finally {
+        btn.disabled = false;
+        btn.classList.remove("opacity-75", "cursor-not-allowed");
+        btnText.innerText = "ส่งรหัส OTP ไปยังอีเมล";
+    }
 }
 
-function resendOtp() {
-    otpCode = String(Math.floor(100000 + Math.random() * 900000));
-    otpExpired = false;
-    document.getElementById("otp-dev-code").innerText = otpCode;
-    document.querySelectorAll(".otp-digit").forEach(inp => {
-        inp.value = "";
-        inp.classList.remove("is-filled", "is-error");
-    });
-    document.getElementById("otp-verify-error").classList.add("hidden");
-    document.getElementById("otp-expired-wrap").classList.add("hidden");
-    document.getElementById("otp-countdown-wrap").classList.remove("hidden");
-    startOtpCountdown(300);
-    document.querySelectorAll(".otp-digit")[0].focus();
+async function resendOtp() {
+    // ขอ OTP ใหม่จาก Backend (ออก voteToken ใหม่)
+    try {
+        const res = await ApiClient.requestOtp(otpEmail);
+        currentVoteToken = res.voteToken;
+        otpExpired = false;
+        const devHint = document.getElementById("otp-dev-hint");
+        if (res.devOtp) {
+            document.getElementById("otp-dev-code").innerText = res.devOtp;
+            if (devHint) devHint.classList.remove("hidden");
+        } else if (devHint) {
+            devHint.classList.add("hidden");
+        }
+        document.querySelectorAll(".otp-digit").forEach(inp => {
+            inp.value = "";
+            inp.classList.remove("is-filled", "is-error");
+        });
+        document.getElementById("otp-verify-error").classList.add("hidden");
+        document.getElementById("otp-expired-wrap").classList.add("hidden");
+        document.getElementById("otp-countdown-wrap").classList.remove("hidden");
+        startOtpCountdown(300);
+        document.querySelectorAll(".otp-digit")[0].focus();
+    } catch (err) {
+        showOtpVerifyError(err.message || "ขอรหัสใหม่ไม่สำเร็จ");
+    }
 }
 
 function goBackToEmail() {
@@ -1187,14 +1375,11 @@ function verifyOtp() {
         digits.forEach(d => { if (!d.value) d.classList.add("is-error"); });
         return;
     }
-    if (entered !== otpCode) {
-        showOtpVerifyError("รหัส OTP ไม่ถูกต้อง กรุณาลองอีกครั้ง");
-        digits.forEach(d => d.classList.add("is-error"));
-        setTimeout(() => digits.forEach(d => { d.classList.remove("is-error"); d.value = ""; }), 600);
-        return;
-    }
 
-    // OTP verified — close OTP modal, open vote confirm modal
+    // เก็บ OTP ที่กรอกไว้ (Backend จะตรวจสอบตอนกดยืนยันลงคะแนนจริง)
+    currentEnteredOtp = entered;
+
+    // ปิดโมดัล OTP แล้วเปิดโมดัลยืนยันการโหวต
     clearOtpCountdown();
     document.getElementById("otp-modal").classList.add("hidden");
 
@@ -1277,7 +1462,7 @@ function closeCandidateRegModal() {
     if (errEl) errEl.classList.add("hidden");
 }
 
-function handleCandidateRegSubmit(e) {
+async function handleCandidateRegSubmit(e) {
     e.preventDefault();
     if (!currentUser || currentUser.role !== "admin") return;
 
@@ -1285,25 +1470,42 @@ function handleCandidateRegSubmit(e) {
     const errEl = document.getElementById("reg-cand-pw-error");
     errEl.classList.add("hidden");
 
-    if (adminPw !== currentUser.password) {
+    // ยืนยันรหัสผ่านแอดมินกับ Backend ก่อนบันทึก
+    try {
+        const r = await ApiClient.loginAdmin(currentUser.id, adminPw);
+        ApiClient.Auth.setToken(r.token);
+    } catch (_) {
         errEl.querySelector("span").innerText = "รหัสผ่านไม่ถูกต้อง กรุณาลองอีกครั้ง";
         errEl.classList.remove("hidden");
         lucide.createIcons();
         return;
     }
 
-    const name = document.getElementById("reg-cand-name").value.trim();
-    const grade = document.getElementById("reg-cand-grade").value;
     const party = document.getElementById("reg-cand-party").value.trim();
     const slogan = document.getElementById("reg-cand-slogan").value.trim();
     const rawPolicies = document.getElementById("reg-cand-policies").value.trim();
-    const policiesList = rawPolicies.split("\n").filter(l => l.trim() !== "");
-    const nextId = candidates.length > 0 ? Math.max(...candidates.map(c => c.id)) + 1 : 1;
+    // รวมสโลแกน + นโยบาย เป็น policy_detail (บรรทัดแรก = สโลแกน)
+    const policyDetail = [slogan, ...rawPolicies.split("\n")].filter(l => l.trim() !== "").join("\n");
+    const nextNo = candidates.length > 0 ? Math.max(...candidates.map(c => c.id)) + 1 : 1;
 
-    candidates.push({ id: nextId, name, grade, party, slogan, avatar: "🎓", policies: policiesList, votes: 0, approved: true });
-    closeCandidateRegModal();
-    showAdminToast(`เพิ่มผู้สมัคร "${name}" เรียบร้อยแล้ว`);
-    updateUI();
+    if (!currentEventId) { showAdminToast("ไม่พบงานเลือกตั้งสำหรับเพิ่มผู้สมัคร"); return; }
+
+    try {
+        await ApiClient.adminAddCandidate({
+            candidate_no: nextNo,
+            event_id: currentEventId,
+            party_name: party,
+            policy_detail: policyDetail,
+        });
+        closeCandidateRegModal();
+        await loadElectionData();
+        updateUI();
+        showSuccessPopup("เพิ่มผู้สมัครเรียบร้อย", `เพิ่มพรรค "${party}" (เบอร์ ${nextNo}) เข้าระบบและฐานข้อมูลแล้ว`);
+    } catch (err) {
+        errEl.querySelector("span").innerText = err.message || "เพิ่มผู้สมัครไม่สำเร็จ";
+        errEl.classList.remove("hidden");
+        lucide.createIcons();
+    }
 }
 
 function saveCandidateChanges(e) {
@@ -1359,18 +1561,27 @@ function closeAdminPwModal() {
     _adminPwCallback = null;
 }
 
-function executeAdminPwAction() {
+async function executeAdminPwAction() {
     const pw = document.getElementById("admin-pw-input").value;
     const errEl = document.getElementById("admin-pw-error");
     errEl.classList.add("hidden");
-    if (!currentUser || pw !== currentUser.password) {
+    if (!currentUser || currentUser.role !== "admin") return;
+
+    // ยืนยันรหัสผ่านแอดมินกับ Backend จริง (re-authenticate ก่อนทำงานสำคัญ)
+    try {
+        const res = await ApiClient.loginAdmin(currentUser.id, pw);
+        ApiClient.Auth.setToken(res.token); // ต่ออายุ token
+    } catch (err) {
         errEl.querySelector("span").innerText = "รหัสผ่านไม่ถูกต้อง กรุณาลองอีกครั้ง";
         errEl.classList.remove("hidden");
         lucide.createIcons();
         return;
     }
+
+    // เก็บ callback ไว้ก่อน เพราะ closeAdminPwModal() จะล้าง _adminPwCallback เป็น null
+    const cb = _adminPwCallback;
     closeAdminPwModal();
-    if (_adminPwCallback) _adminPwCallback();
+    if (cb) cb();
 }
 
 // --- Admin Toast ---
@@ -1387,6 +1598,46 @@ function showAdminToast(msg) {
     lucide.createIcons();
     clearTimeout(t._timer);
     t._timer = setTimeout(() => { t.style.opacity = "0"; t.style.transform = "translateY(8px)"; }, 3000);
+}
+
+// --- Success Popup (Pop-up กลางจอแจ้งผลการทำงานสำคัญของแอดมิน) ---
+function showSuccessPopup(title, message, variant) {
+    // variant: "success" (เขียว, ค่าเริ่มต้น) | "danger" (แดง สำหรับการลบ)
+    const isDanger = variant === "danger";
+    let p = document.getElementById("success-popup");
+    if (!p) {
+        p = document.createElement("div");
+        p.id = "success-popup";
+        p.className = "fixed inset-0 z-[1000] hidden items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm";
+        p.innerHTML = `
+          <div id="success-popup-card" class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center" style="animation: modalPop .22s cubic-bezier(0.34,1.4,0.64,1) both;">
+            <div id="success-popup-icon-wrap" class="mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-4">
+              <i id="success-popup-icon" data-lucide="check" class="w-9 h-9"></i>
+            </div>
+            <h3 id="success-popup-title" class="text-lg font-bold text-slate-900 mb-1"></h3>
+            <p id="success-popup-msg" class="text-sm text-slate-500 mb-5"></p>
+            <button id="success-popup-btn" onclick="closeSuccessPopup()" class="w-full text-white font-semibold py-2.5 rounded-xl text-sm transition">ตกลง</button>
+          </div>`;
+        document.body.appendChild(p);
+        p.addEventListener("click", (e) => { if (e.target === p) closeSuccessPopup(); });
+    }
+    const iconWrap = document.getElementById("success-popup-icon-wrap");
+    const icon = document.getElementById("success-popup-icon");
+    const btn = document.getElementById("success-popup-btn");
+    iconWrap.className = `mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-4 ${isDanger ? "bg-red-100" : "bg-emerald-100"}`;
+    icon.className = `w-9 h-9 ${isDanger ? "text-red-600" : "text-emerald-600"}`;
+    icon.setAttribute("data-lucide", isDanger ? "trash-2" : "check");
+    btn.className = `w-full text-white font-semibold py-2.5 rounded-xl text-sm transition ${isDanger ? "bg-red-600 hover:bg-red-700" : "bg-emerald-600 hover:bg-emerald-700"}`;
+    document.getElementById("success-popup-title").innerText = title || "ดำเนินการเสร็จสิ้น";
+    document.getElementById("success-popup-msg").innerText = message || "";
+    p.classList.remove("hidden");
+    p.classList.add("flex");
+    lucide.createIcons();
+}
+
+function closeSuccessPopup() {
+    const p = document.getElementById("success-popup");
+    if (p) { p.classList.add("hidden"); p.classList.remove("flex"); }
 }
 
 // --- Election Settings ---
@@ -1410,12 +1661,17 @@ function closeElectionSettingsModal() {
     document.getElementById("election-settings-modal").classList.add("hidden");
 }
 
-function saveElectionSettings() {
+async function saveElectionSettings() {
     const pw = document.getElementById("election-settings-admin-pw").value;
     const errEl = document.getElementById("election-settings-pw-error");
     errEl.classList.add("hidden");
 
-    if (!currentUser || pw !== currentUser.password) {
+    if (!currentUser || currentUser.role !== "admin") return;
+    // ยืนยันรหัสผ่านแอดมินกับ Backend ก่อนบันทึกการตั้งค่า
+    try {
+        const r = await ApiClient.loginAdmin(currentUser.id, pw);
+        ApiClient.Auth.setToken(r.token);
+    } catch (_) {
         errEl.innerText = "รหัสผ่านไม่ถูกต้อง กรุณาลองอีกครั้ง";
         errEl.classList.remove("hidden");
         return;
@@ -1424,29 +1680,23 @@ function saveElectionSettings() {
     const title = document.getElementById("election-title-input").value.trim();
     const closeTimeVal = document.getElementById("election-close-time").value;
 
-    if (title) electionTitle = title;
-    if (closeTimeVal) {
-        electionCloseTime = new Date(closeTimeVal);
-        startCountdown();
-    } else {
-        electionCloseTime = null;
-        stopCountdown();
-    }
+    if (!currentEventId) { errEl.innerText = "ไม่พบงานเลือกตั้งที่จะตั้งค่า"; errEl.classList.remove("hidden"); return; }
+    if (!closeTimeVal) { errEl.innerText = "กรุณาเลือกวันและเวลาปิดหีบ"; errEl.classList.remove("hidden"); return; }
 
-    // ==========================================
-    // 🟢 ส่วนที่ต้องเพิ่ม: ดึงค่าสถานะจากหน้าเว็บมาอัปเดตระบบ
-    // ==========================================
-    // สมมติว่า Element ที่ใช้เลือกสถานะเปิด/ปิดหีบใน HTML มี id ชื่อ "election-status-select"
-    const statusSelect = document.getElementById("election-status-select");
-    if (statusSelect) {
-        // ถ้าเลือก "active" หรือ "open" ให้เป็น true / นอกเหนือจากนั้น (เช่น "closed") ให้เป็น false
-        isElectionActive = (statusSelect.value === "active");
-    }
-    // ==========================================
+    // แปลงค่า datetime-local ("YYYY-MM-DDTHH:mm") -> รูปแบบ MySQL ("YYYY-MM-DD HH:mm:00")
+    const endDatetime = closeTimeVal.replace("T", " ") + ":00";
 
-    closeElectionSettingsModal();
-    showAdminToast("บันทึกการตั้งค่าการเลือกตั้งเรียบร้อยแล้ว");
-    updateUI();
+    try {
+        // บันทึกชื่องาน + เวลาปิดหีบลง DB เพื่อให้นับถอยหลังแชร์ไปยังผู้ใช้ทุกคน
+        await ApiClient.adminUpdateSettings(currentEventId, title || electionTitle, endDatetime);
+        closeElectionSettingsModal();
+        await loadElectionData(); // โหลดเวลาปิดหีบใหม่ -> เริ่มนับถอยหลังให้ทุกคน
+        updateUI();
+        showSuccessPopup("บันทึกการตั้งค่าเรียบร้อย", "อัปเดตชื่องานและเวลาปิดหีบแล้ว ระบบจะนับถอยหลังและปิดหีบอัตโนมัติเมื่อถึงเวลา");
+    } catch (err) {
+        errEl.innerText = err.message || "บันทึกการตั้งค่าไม่สำเร็จ";
+        errEl.classList.remove("hidden");
+    }
 }
 
 function startCountdown() {
@@ -1462,7 +1712,14 @@ function startCountdown() {
         const diff = electionCloseTime - now;
         if (diff <= 0) {
             stopCountdown();
-            if (isElectionOpen) { isElectionOpen = false; updateUI(); showAdminToast("⏰ ปิดหีบอัตโนมัติแล้ว!"); }
+            const cdH = document.getElementById("cd-hours");
+            const cdM = document.getElementById("cd-minutes");
+            const cdS = document.getElementById("cd-seconds");
+            if (cdH) cdH.innerText = "00";
+            if (cdM) cdM.innerText = "00";
+            if (cdS) cdS.innerText = "00";
+            // หมดเวลาที่แอดมินตั้งไว้ — ดึงสถานะล่าสุดจากเซิร์ฟเวอร์ (แอดมินเป็นผู้ควบคุมการปิดหีบจริง)
+            loadElectionData().then(updateUI);
             return;
         }
         const h = Math.floor(diff / 3600000);
@@ -1489,27 +1746,36 @@ function toggleElectionStatus() {
         isElectionOpen ? "ยืนยันการปิดหีบ" : "ยืนยันการเปิดหีบ",
         isElectionOpen ? "การปิดหีบจะหยุดรับคะแนนทันที" : "การเปิดหีบจะอนุญาตให้โหวตได้อีกครั้ง",
         isElectionOpen ? "ยืนยัน ปิดหีบ" : "ยืนยัน เปิดหีบ",
-        () => {
-            isElectionOpen = !isElectionOpen;
-            if (!isElectionOpen) stopCountdown();
-            updateUI();
-            showAdminToast(isElectionOpen ? "เปิดหีบรับคะแนนแล้ว" : "ปิดหีบรับคะแนนแล้ว");
+        async () => {
+            if (!currentEventId) { showAdminToast("ไม่พบงานเลือกตั้งที่จะปรับสถานะ"); return; }
+            const newActive = isElectionOpen ? 0 : 1;
+            try {
+                await ApiClient.adminSetEventStatus(currentEventId, newActive);
+                if (newActive === 0) stopCountdown();
+                await loadElectionData();
+                updateUI();
+                showSuccessPopup(
+                    newActive === 1 ? "เปิดหีบเรียบร้อย" : "ปิดหีบเรียบร้อย",
+                    newActive === 1
+                        ? "ระบบเปิดรับการลงคะแนนแล้ว"
+                        : "ระบบปิดรับการลงคะแนนเสียงทันที ผู้ใช้จะไม่สามารถโหวตได้อีก"
+                );
+            } catch (err) {
+                showAdminToast(err.message || "ปรับสถานะไม่สำเร็จ");
+            }
         }
     );
 }
 
 function resetElectionData() {
     openAdminPwModal(
-        "⚠ ยืนยันการรีเซ็ตข้อมูลทั้งหมด",
+        "ยืนยันการรีเซ็ตข้อมูลทั้งหมด",
         "จะลบคะแนนโหวตทั้งหมดและคืนสิทธิ์โหวตให้นักเรียนทุกคน ไม่สามารถย้อนกลับได้",
         "ยืนยัน รีเซ็ตทั้งหมด",
         () => {
-            candidates.forEach(c => c.votes = 0);
-            students.forEach(s => { s.voted = false; delete s.votedFor; });
-            auditLogs = [];
-            if (currentUser) { currentUser.voted = false; delete currentUser.votedFor; }
-            updateUI();
-            showAdminToast("รีเซ็ตข้อมูลเรียบร้อยแล้ว");
+            // หมายเหตุ: เวอร์ชันเชื่อม Backend ยังไม่มี endpoint สำหรับล้างคะแนน
+            // ให้ใช้คำสั่ง `npm run seed` ฝั่งเซิร์ฟเวอร์เพื่อรีเซ็ตข้อมูลแทน
+            showSuccessPopup("ยังไม่รองรับการรีเซ็ตจากหน้าเว็บ", "การล้างคะแนนทำได้ที่เซิร์ฟเวอร์ด้วยคำสั่ง npm run seed เท่านั้น");
         }
     );
 }
@@ -1527,8 +1793,8 @@ function approveCandidate(studentName) {
                 students[stdIdx].candidateApproved = true;
                 students[stdIdx].candidateId = candidates[candIdx].id;
             }
-            showAdminToast(`อนุมัติ "${studentName}" เรียบร้อยแล้ว`);
             updateUI();
+            showSuccessPopup("อนุมัติผู้สมัครเรียบร้อย", `อนุมัติ "${studentName}" เป็นผู้สมัครอย่างเป็นทางการแล้ว`);
         }
     );
 }
@@ -1540,15 +1806,14 @@ function deleteStudent(studentId) {
         "ยืนยันการลบนักเรียน",
         `ลบ "${target.name}" (${target.id}) ออกจากระบบ ข้อมูลจะหายถาวร`,
         "ยืนยัน ลบออก",
-        () => {
-            const index = students.findIndex(s => s.id === studentId);
-            if (index !== -1) {
-                const deletedName = students[index].name;
-                students.splice(index, 1);
-                const candIdx = candidates.findIndex(c => c.name === deletedName);
-                if (candIdx !== -1) candidates.splice(candIdx, 1);
-                showAdminToast(`ลบ "${deletedName}" ออกจากระบบแล้ว`);
+        async () => {
+            try {
+                await ApiClient.adminDeleteStudent(studentId);
+                await loadAdminStudents();
                 updateUI();
+                showSuccessPopup("ลบนักเรียนเรียบร้อย", `ลบ "${target.name}" (${target.id}) ออกจากระบบและฐานข้อมูลแล้ว`, "danger");
+            } catch (err) {
+                showAdminToast(err.message || "ลบนักเรียนไม่สำเร็จ");
             }
         }
     );
@@ -1564,54 +1829,82 @@ function closeAddStudentModal() {
     document.getElementById("add-std-id").value = "";
 }
 
-function handleAddStudentSubmit(e) {
+async function handleAddStudentSubmit(e) {
     e.preventDefault();
     const name = document.getElementById("add-std-name").value.trim();
     const id = document.getElementById("add-std-id").value.trim();
     const grade = document.getElementById("add-std-grade").value;
     if (id.length !== 5) { alert("รหัสนักเรียนต้องเป็นตัวเลข 5 หลัก"); return; }
-    if (students.some(s => s.id === id)) { alert("รหัสนักเรียนนี้ถูกใช้ไปแล้ว"); return; }
-    students.push({ id, name, grade, role: "student", voted: false, candidateApproved: false });
-    closeAddStudentModal();
-    updateUI();
+    try {
+        await ApiClient.adminAddStudent({
+            student_id: id,
+            student_name: name,
+            student_class: grade,
+            student_email: `${id}@student.local`,
+            student_status: "Active",
+            // ไม่ส่ง password -> Backend ใช้รหัสนักเรียนเป็นรหัสผ่านเริ่มต้น (และ Hash ให้)
+        });
+        closeAddStudentModal();
+        await loadAdminStudents();
+        updateUI();
+        showSuccessPopup("เพิ่มนักเรียนเรียบร้อย", `เพิ่ม "${name}" (${id}) เข้าระบบและฐานข้อมูลแล้ว`);
+    } catch (err) {
+        alert(err.message || "เพิ่มนักเรียนไม่สำเร็จ");
+    }
 }
 
-// === 8. AI CHATBOT ===
-function sendChat() {
+// === 8. AI CHATBOT (เชื่อม Gemini ผ่าน Backend) ===
+async function sendChat() {
     const input = document.getElementById("chat-input");
     const chatBox = document.getElementById("chat-box");
     const userMessage = input.value.trim();
     if (!userMessage) return;
 
+    // ข้อความผู้ใช้
     chatBox.innerHTML += `
     <div class="flex justify-end">
-      <div class="bg-blue-600 text-white p-3 rounded-xl max-w-[80%]">${userMessage}</div>
+      <div class="bg-blue-600 text-white p-3 rounded-xl max-w-[80%]">${escapeHtml(userMessage)}</div>
     </div>
   `;
+    input.value = "";
 
-    let botReply = "ขออภัย ฉันยังไม่มีข้อมูลในด้านนี้";
-    const msg = userMessage.toLowerCase();
+    // ฟองข้อความ "กำลังพิมพ์..."
+    const loadingId = "chat-loading-" + Date.now();
+    chatBox.innerHTML += `
+    <div class="flex justify-start items-start gap-2" id="${loadingId}">
+      <span class="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center flex-shrink-0"><i data-lucide="bot" class="w-4 h-4"></i></span>
+      <div class="bg-slate-200 text-slate-500 p-3 rounded-xl italic">กำลังคิดคำตอบ...</div>
+    </div>
+  `;
+    lucide.createIcons();
+    chatBox.scrollTop = chatBox.scrollHeight;
 
-    if (msg.includes("wifi") || msg.includes("ไวไฟ") || msg.includes("เทคโนโลยี") || msg.includes("การเรียน")) {
-        botReply = `🎓 แนะนำ: พรรคพลังนักเรียนใหม่\nเพราะพรรคนี้เน้น:\n• พัฒนา WiFi โรงเรียน\n• เทคโนโลยีการเรียน\n• การศึกษายุคใหม่`;
-    } else if (msg.includes("สุขภาพจิต") || msg.includes("ความเครียด") || msg.includes("co-working") || msg.includes("ห้องสมุด")) {
-        botReply = `🌱 แนะนำ: พรรคก้าวรุ่งพัฒนา\nเพราะพรรคนี้เน้น:\n• สุขภาพจิตนักเรียน\n• Co-working Space\n• สนับสนุนความหลากหลาย`;
-    } else if (msg.includes("กีฬา") || msg.includes("กิจกรรม") || msg.includes("ดนตรี") || msg.includes("esports")) {
-        botReply = `🎸 แนะนำ: พรรครวมมิตรกิจกรรม\nเพราะพรรคนี้เน้น:\n• กีฬา\n• ดนตรี\n• Esports\n• กิจกรรมโรงเรียน`;
-    } else {
-        botReply = `🤖 ฉันสามารถช่วยแนะนำพรรคได้จาก:\n• เทคโนโลยี\n• กีฬา\n• กิจกรรม\n• สุขภาพจิต\n• ห้องสมุด\n• WiFi\n• ดนตรี\nลองถามใหม่อีกครั้ง 😊`;
+    let reply;
+    try {
+        const res = await ApiClient.askAI(userMessage);
+        reply = (res.data && res.data.reply) || "ขออภัย ไม่สามารถตอบได้ในขณะนี้";
+    } catch (err) {
+        reply = err.message || "ขออภัย ระบบ AI ขัดข้องชั่วคราว กรุณาลองใหม่";
     }
 
-    setTimeout(() => {
-        chatBox.innerHTML += `
-      <div class="flex justify-start">
-        <div class="bg-slate-200 text-slate-800 p-3 rounded-xl max-w-[80%] whitespace-pre-line">🤖 ${botReply}</div>
+    const loadingEl = document.getElementById(loadingId);
+    if (loadingEl) loadingEl.remove();
+    chatBox.innerHTML += `
+      <div class="flex justify-start items-start gap-2">
+        <span class="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center flex-shrink-0"><i data-lucide="bot" class="w-4 h-4"></i></span>
+        <div class="bg-slate-200 text-slate-800 p-3 rounded-xl max-w-[80%] whitespace-pre-line">${escapeHtml(reply)}</div>
       </div>
     `;
-        chatBox.scrollTop = chatBox.scrollHeight;
-    }, 500);
+    lucide.createIcons();
+    chatBox.scrollTop = chatBox.scrollHeight;
+}
 
-    input.value = "";
+// ป้องกัน HTML injection ในฟองแชท
+function escapeHtml(str) {
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
 }
 
 /* =========================
@@ -1622,4 +1915,185 @@ function toggleHistoryResults() {
     const historySection = document.getElementById("history-results");
 
     historySection.classList.toggle("hidden");
+}
+
+/* =========================
+   FORGOT PASSWORD (รีเซ็ตรหัสผ่านด้วย OTP ทางอีเมล)
+========================= */
+let forgotResetToken = null;
+
+function openForgotModal() {
+    forgotResetToken = null;
+    document.getElementById("forgot-student-id").value = "";
+    document.getElementById("forgot-email").value = "";
+    document.getElementById("forgot-otp").value = "";
+    document.getElementById("forgot-new-pw").value = "";
+    document.getElementById("forgot-err-1").classList.add("hidden");
+    document.getElementById("forgot-err-2").classList.add("hidden");
+    document.getElementById("forgot-step-1").classList.remove("hidden");
+    document.getElementById("forgot-step-2").classList.add("hidden");
+    closeAuthModal();
+    document.getElementById("forgot-modal").classList.remove("hidden");
+    lucide.createIcons();
+}
+
+function closeForgotModal() {
+    document.getElementById("forgot-modal").classList.add("hidden");
+}
+
+function forgotBackToStep1() {
+    document.getElementById("forgot-step-2").classList.add("hidden");
+    document.getElementById("forgot-step-1").classList.remove("hidden");
+}
+
+async function forgotRequestOtp() {
+    const sid = document.getElementById("forgot-student-id").value.trim();
+    const email = document.getElementById("forgot-email").value.trim();
+    const err = document.getElementById("forgot-err-1");
+    err.classList.add("hidden");
+
+    if (sid.length !== 5) { err.innerText = "รหัสนักเรียนต้องเป็นตัวเลข 5 หลัก"; err.classList.remove("hidden"); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { err.innerText = "กรุณากรอกอีเมลให้ถูกต้อง"; err.classList.remove("hidden"); return; }
+
+    const btn = document.getElementById("forgot-send-btn");
+    const txt = document.getElementById("forgot-send-text");
+    btn.disabled = true; txt.innerText = "กำลังส่ง...";
+    try {
+        const res = await ApiClient.forgotPassword(sid, email);
+        forgotResetToken = res.resetToken;
+        document.getElementById("forgot-email-display").innerText = res.email || email;
+        document.getElementById("forgot-step-1").classList.add("hidden");
+        document.getElementById("forgot-step-2").classList.remove("hidden");
+        lucide.createIcons();
+    } catch (e) {
+        err.innerText = e.message || "ส่ง OTP ไม่สำเร็จ";
+        err.classList.remove("hidden");
+    } finally {
+        btn.disabled = false; txt.innerText = "ส่งรหัส OTP";
+    }
+}
+
+async function forgotResetPassword() {
+    const otp = document.getElementById("forgot-otp").value.trim();
+    const newPw = document.getElementById("forgot-new-pw").value;
+    const err = document.getElementById("forgot-err-2");
+    err.classList.add("hidden");
+
+    if (otp.length !== 6) { err.innerText = "กรุณากรอกรหัส OTP 6 หลัก"; err.classList.remove("hidden"); return; }
+    if (newPw.length < 6) { err.innerText = "รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร"; err.classList.remove("hidden"); return; }
+
+    try {
+        await ApiClient.resetPassword(forgotResetToken, otp, newPw);
+        closeForgotModal();
+        showAdminToast("ตั้งรหัสผ่านใหม่เรียบร้อยแล้ว เข้าสู่ระบบด้วยรหัสใหม่ได้เลย");
+        openAuthModal();
+    } catch (e) {
+        err.innerText = e.message || "รีเซ็ตรหัสผ่านไม่สำเร็จ";
+        err.classList.remove("hidden");
+    }
+}
+
+/* =========================
+   ADMIN: แก้ไข / ลบ พรรค
+========================= */
+function openEditPartyModal(candidateId) {
+    if (!currentUser || currentUser.role !== "admin") return;
+    const cand = candidates.find(c => c.candidate_id === candidateId);
+    if (!cand) return;
+    document.getElementById("edit-party-cand-id").value = candidateId;
+    document.getElementById("edit-party-name-input").value = cand.party;
+    document.getElementById("edit-party-policies-input").value = (cand.policies || []).join("\n");
+    document.getElementById("edit-party-err").classList.add("hidden");
+    document.getElementById("edit-party-modal").classList.remove("hidden");
+    lucide.createIcons();
+}
+
+function closeEditPartyModal() {
+    document.getElementById("edit-party-modal").classList.add("hidden");
+}
+
+async function saveEditParty(e) {
+    e.preventDefault();
+    const id = Number(document.getElementById("edit-party-cand-id").value);
+    const name = document.getElementById("edit-party-name-input").value.trim();
+    const policyDetail = document.getElementById("edit-party-policies-input").value
+        .split("\n").map(s => s.trim()).filter(Boolean).join("\n");
+    const err = document.getElementById("edit-party-err");
+    err.classList.add("hidden");
+    try {
+        await ApiClient.adminUpdateCandidate(id, name, policyDetail);
+        closeEditPartyModal();
+        await loadElectionData();
+        updateUI();
+        showSuccessPopup("แก้ไขพรรคเรียบร้อย", "บันทึกชื่อพรรคและนโยบายใหม่ลงฐานข้อมูลแล้ว");
+    } catch (e2) {
+        err.innerText = e2.message || "แก้ไขพรรคไม่สำเร็จ";
+        err.classList.remove("hidden");
+    }
+}
+
+function deleteParty(candidateId, partyName) {
+    openAdminPwModal(
+        "ยืนยันการลบพรรค",
+        `ลบพรรค "${partyName}" ออกจากระบบ ข้อมูลและลูกทีมในพรรคจะถูกลบถาวร`,
+        "ยืนยัน ลบพรรค",
+        async () => {
+            try {
+                await ApiClient.adminDeleteCandidate(candidateId);
+                await loadElectionData();
+                updateUI();
+                showSuccessPopup("ลบพรรคเรียบร้อย", `ลบพรรค "${partyName}" ออกจากระบบและฐานข้อมูลแล้ว`, "danger");
+            } catch (e) {
+                showAdminToast(e.message || "ลบพรรคไม่สำเร็จ");
+            }
+        }
+    );
+}
+
+/* =========================
+   EXPORT DASHBOARD -> EXCEL (.xlsx) ด้วย SheetJS
+========================= */
+async function exportDashboardExcel() {
+    if (!currentUser || currentUser.role !== "admin") { showAdminToast("เฉพาะแอดมินเท่านั้น"); return; }
+    if (typeof XLSX === "undefined") { showAdminToast("ไลบรารี Excel ยังโหลดไม่เสร็จ ลองใหม่อีกครั้ง"); return; }
+    if (!currentEventId) { showAdminToast("ไม่พบงานเลือกตั้ง"); return; }
+
+    try {
+        const a = await ApiClient.adminAnalytics(currentEventId);
+        const results = (a.voting_results || []).slice().sort((x, y) => y.total_votes - x.total_votes);
+        const totalEligible = Number(a.total_eligible) || 2000;
+        const voted = Number(a.total_voters_turnout) || 0;
+        const validVotes = results.reduce((s, r) => s + Number(r.total_votes), 0);
+        const abstain = Math.max(0, voted - validVotes);
+        const noShow = totalEligible - voted;
+        const pct = (n) => (voted > 0 ? ((n / voted) * 100).toFixed(2) + "%" : "0%");
+
+        // ชีต 1: ผลการเลือกตั้งอย่างเป็นทางการ
+        const sheet1 = [["อันดับ", "เบอร์", "พรรค", "คะแนน", "% จากผู้มาใช้สิทธิ์"]];
+        results.forEach((r, i) => {
+            sheet1.push([i + 1, r.candidate_no, r.party_name || "", Number(r.total_votes), pct(r.total_votes)]);
+        });
+        sheet1.push(["-", "-", "งดออกเสียง (No Vote)", abstain, pct(abstain)]);
+
+        // ชีต 2: จำนวนผู้เข้ามาใช้สิทธิ์
+        const turnoutPct = totalEligible > 0 ? ((voted / totalEligible) * 100).toFixed(2) + "%" : "0%";
+        const sheet2 = [
+            ["รายการ", "จำนวน (คน)"],
+            ["นักเรียนผู้มีสิทธิ์ทั้งหมด", totalEligible],
+            ["มาใช้สิทธิ์", voted],
+            ["งดออกเสียง (กดงดออกเสียง)", abstain],
+            ["ไม่มาใช้สิทธิ์", noShow],
+            ["คิดเป็น % ผู้มาใช้สิทธิ์", turnoutPct],
+        ];
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheet1), "ผลการเลือกตั้ง");
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheet2), "ผู้มาใช้สิทธิ์");
+
+        const stamp = new Date().toISOString().slice(0, 10);
+        XLSX.writeFile(wb, `dashboard-เลือกตั้ง-${stamp}.xlsx`);
+        showAdminToast("ดาวน์โหลดไฟล์ Excel เรียบร้อยแล้ว");
+    } catch (err) {
+        showAdminToast(err.message || "Export ไม่สำเร็จ");
+    }
 }

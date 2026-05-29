@@ -25,13 +25,16 @@ export const getDashboard = async (req, res, next) => {
 export const requestOTP = async (req, res, next) => {
     try {
         const studentId = req.student_id; // มาจาก Auth Middleware
+        const { email } = req.body || {};
 
-        const { voteToken } = await electionService.requestVoteOTP(studentId);
-        
+        const result = await electionService.requestVoteOTP(studentId, email);
+
         res.status(200).json({
             status: "success",
             message: "ส่งรหัส OTP ไปยังอีเมลเรียบร้อยแล้ว",
-            voteToken: voteToken // Frontend ต้องเก็บตัวนี้ไว้ส่งกลับตอนโหวตจริง
+            voteToken: result.voteToken, // Frontend เก็บไว้ส่งกลับตอนโหวตจริง
+            email: result.email,
+            emailSent: result.emailSent,
         });
     } catch (error) {
         res.status(400).json({ status: "error", message: error.message });
@@ -75,10 +78,28 @@ export const submitVote = async (req, res, next) => {
  */
 export const getHistory = async (req, res, next) => {
     try {
-        const history = await electionService.getResults(); // หรือดึงจาก Repo โดยตรง
+        const history = await electionService.getHistory();
         res.status(200).json({
             status: "success",
             data: history
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * 5. ผลการเลือกตั้ง (Results)
+ * GET /api/votes/results
+ * - คืนสถิติผู้มาใช้สิทธิ์เสมอ
+ * - คืนคะแนนรายเบอร์เฉพาะเมื่อปิดหีบแล้ว (is_active = 0)
+ */
+export const getResults = async (req, res, next) => {
+    try {
+        const data = await electionService.getResults();
+        res.status(200).json({
+            status: "success",
+            data: data
         });
     } catch (error) {
         next(error);

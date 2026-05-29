@@ -1,7 +1,14 @@
 /* ฟอนต์หลักและพื้นหลัง */
 body {
     font-family: 'Prompt', sans-serif;
+    /* พื้นหลังไล่เฉดฟ้าอ่อนแบบนุ่มตา (โทนเดิม) */
     background-color: #f0f4f8;
+    background-image:
+        radial-gradient(1200px 600px at 100% -10%, rgba(37, 99, 235, 0.06), transparent 60%),
+        radial-gradient(1000px 500px at -10% 110%, rgba(99, 102, 241, 0.05), transparent 60%);
+    background-attachment: fixed;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
 /* ซ่อน scrollbar แต่ยังสามารถเลื่อนได้ */
@@ -371,4 +378,108 @@ body {
 
 main {
     flex: 1;
+}
+
+/* =========================
+   UI POLISH (โทนสีเดิม เน้นเรียบง่าย สบายตา)
+========================= */
+
+/* ทำให้การโต้ตอบทุกอย่างลื่นไหลขึ้นเล็กน้อย */
+button,
+a,
+.tab-btn,
+input,
+select,
+textarea {
+    transition: background-color .2s ease, border-color .2s ease,
+        box-shadow .2s ease, color .2s ease, transform .12s ease;
+}
+
+/* ปุ่มกดมีฟีดแบ็กเล็กน้อยเวลาคลิก */
+button:active {
+    transform: translateY(1px) scale(0.99);
+}
+
+/* โฟกัสช่องกรอกให้นุ่มตา (ขอบฟ้าโทนเดิม) */
+input:focus,
+select:focus,
+textarea:focus {
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+/* การ์ดแผงหลักพื้นขาวยกตัวเบา ๆ เมื่อชี้เมาส์ — เพิ่มมิติแบบบางเบา */
+main > .space-y-8 .bg-white.rounded-2xl {
+    transition: box-shadow .25s ease;
+}
+
+main .bg-white.rounded-2xl.shadow-sm:hover {
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.07);
+}
+
+/* เส้นคั่นบาง ๆ ใต้แถบหัวข้อแท็บ ให้ดูเป็นระเบียบ */
+.tab-btn {
+    position: relative;
+}
+
+/* สครอลบาร์เพรียวบางโทนฟ้า สำหรับพื้นที่ที่เลื่อนได้ */
+#chat-box::-webkit-scrollbar,
+#admin-audit-logs::-webkit-scrollbar,
+.overflow-y-auto::-webkit-scrollbar,
+.overflow-x-auto::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+#chat-box::-webkit-scrollbar-thumb,
+#admin-audit-logs::-webkit-scrollbar-thumb,
+.overflow-y-auto::-webkit-scrollbar-thumb,
+.overflow-x-auto::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 999px;
+}
+
+#chat-box::-webkit-scrollbar-thumb:hover,
+#admin-audit-logs::-webkit-scrollbar-thumb:hover,
+.overflow-y-auto::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+#chat-box::-webkit-scrollbar-track,
+#admin-audit-logs::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+/* การ์ดผู้สมัคร: ขีดเส้นขอบบนบาง ๆ เป็นจุดเด่นแบบเรียบ */
+#candidates-grid > div {
+    border-top: 3px solid transparent;
+    background-clip: padding-box;
+}
+
+#candidates-grid > div:hover {
+    border-top-color: #2563eb;
+}
+
+/* โมดัลค่อย ๆ ปรากฏ ไม่กระตุก */
+[id$="-modal"]:not(.hidden) > div {
+    animation: modalPop .22s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+}
+
+@keyframes modalPop {
+    0% {
+        opacity: 0;
+        transform: translateY(8px) scale(0.98);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* แถบสถิติ/ตัวเลขให้อ่านสบายตาขึ้นด้วยตัวเลขแบบ tabular */
+.font-mono,
+[id^="stat-"],
+[id^="result-"],
+[id^="cd-"] {
+    font-variant-numeric: tabular-nums;
 }

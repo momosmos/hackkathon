@@ -104,12 +104,15 @@ export const verifyAndCastVote = async (data) => {
     }
 };
 import express from 'express';
-const router = express.Router();
 import * as studentController from '../controllers/student.controller.js';
+import { verifyStudentToken } from '../middlewares/auth.middleware.js';
 
-router.post('/register', studentController.handleRegister);       // สำหรับหน้า Register
-router.post('/login', studentController.handleLogin);             // สำหรับหน้า Login
-router.post('/vote/request', studentController.handleRequestVoteOTP); // ตอนกดโหวตแล้วเด้งให้ใส่เมล
-router.post('/vote/confirm', studentController.handleConfirmVote); // ตอนกรอก OTP โหวตเสร็จ
+const router = express.Router();
+
+router.post('/register', studentController.register);          // สมัครสมาชิก
+router.post('/login', studentController.login);                // เข้าสู่ระบบ (ออก JWT)
+router.post('/forgot-password', studentController.forgotPassword); // ลืมรหัสผ่าน: ขอ OTP
+router.post('/reset-password', studentController.resetPassword);   // ลืมรหัสผ่าน: ตั้งรหัสใหม่
+router.get('/me', verifyStudentToken, studentController.getProfile); // โปรไฟล์ของฉัน (ต้องล็อกอิน)
 
 export default router

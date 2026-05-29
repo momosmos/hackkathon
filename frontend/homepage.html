@@ -9,6 +9,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- SheetJS (สำหรับ Export Excel) -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
     <!-- Google Fonts: Prompt -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -33,7 +35,8 @@
                     </div>
 
                     <div class="flex items-center space-x-4">
-                        <div class="hidden md:flex items-center space-x-2 bg-blue-950 px-3 py-1.5 rounded-full text-xs">
+                        <div id="nav-status-pill"
+                            class="flex items-center space-x-2 bg-blue-950 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors">
                             <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"
                                 id="nav-election-status-dot"></span>
                             <span id="nav-election-status" class="text-blue-100 font-medium">เปิดลงคะแนนอยู่</span>
@@ -59,7 +62,7 @@
                 <div class="relative z-10 max-w-2xl">
                     <span
                         class="bg-amber-400 text-blue-950 font-bold px-3 py-1 rounded-full text-xs uppercase tracking-wider shadow-sm">ปีการศึกษา
-                        2026</span>
+                        2569</span>
                     <h1 class="text-2xl md:text-4xl font-bold mt-3 mb-2 leading-tight">ร่วมสร้างอนาคตโรงเรียนของเราด้วย
                         1
                         เสียงของคุณ</h1>
@@ -110,6 +113,16 @@
 
             <!-- PAGE: HOME & VOTING -->
             <div id="page-home" class="tab-page space-y-8">
+
+                <!-- Closed Banner (แสดงเมื่อปิดหีบ) -->
+                <div id="election-closed-banner"
+                    class="hidden bg-red-600 text-white rounded-2xl p-4 flex items-center gap-3 shadow-lg ring-2 ring-red-300/40">
+                    <div class="p-2.5 bg-white/15 rounded-xl"><i data-lucide="lock" class="w-6 h-6"></i></div>
+                    <div>
+                        <p class="font-bold text-base leading-tight">ปิดหีบรับคะแนนแล้ว</p>
+                        <p class="text-sm text-red-100">ขณะนี้ระบบปิดรับการลงคะแนนเสียง — ไม่สามารถโหวตได้</p>
+                    </div>
+                </div>
 
                 <!-- Countdown Banner (แสดงเมื่อมีการตั้งเวลา) -->
                 <div id="election-countdown-banner"
@@ -225,14 +238,14 @@
                             </h3>
                             <div class="space-y-4">
                                 <div class="border-l-4 border-blue-500 pl-3 py-1">
-                                    <span class="text-[10px] text-slate-400 font-medium block">19 พฤษภาคม 2026</span>
+                                    <span class="text-[10px] text-slate-400 font-medium block">26 พฤษภาคม 2569</span>
                                     <h4 class="text-xs font-semibold text-slate-800">
                                         เปิดระบบลงคะแนนเสียงออนไลน์รอบเช้าแล้ว!</h4>
                                     <p class="text-[11px] text-slate-500">
                                         กรุณาตรวจสอบรายชื่อผู้สมัครและนโยบายอย่างถี่ถ้วนก่อนทำการกดโหวตในระบบ</p>
                                 </div>
                                 <div class="border-l-4 border-amber-500 pl-3 py-1">
-                                    <span class="text-[10px] text-slate-400 font-medium block">18 พฤษภาคม 2026</span>
+                                    <span class="text-[10px] text-slate-400 font-medium block">24 พฤษภาคม 2569</span>
                                     <h4 class="text-xs font-semibold text-slate-800">
                                         กติกาเรื่องการหาเสียงผ่านสื่อโซเชียล</h4>
                                     <p class="text-[11px] text-slate-500">
@@ -267,7 +280,7 @@
                     <div class="bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 rounded-2xl p-1 shadow-xl">
                         <div class="bg-white rounded-xl p-6 md:p-8">
                             <div class="text-center mb-6">
-                                <span class="text-5xl">🏆</span>
+                                <span class="inline-flex w-16 h-16 rounded-2xl bg-amber-100 text-amber-500 items-center justify-center"><i data-lucide="trophy" class="w-8 h-8"></i></span>
                                 <h2 class="text-2xl md:text-3xl font-bold text-slate-900 mt-3">
                                     ผลการเลือกตั้งอย่างเป็นทางการ</h2>
                                 <p class="text-sm text-slate-500 mt-1" id="election-title-display">
@@ -361,7 +374,7 @@
             <div id="page-chatbot" class="tab-page hidden">
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 max-w-4xl mx-auto">
                     <div class="text-center mb-6">
-                        <div class="text-6xl mb-3">🤖</div>
+                        <div class="inline-flex w-16 h-16 rounded-2xl bg-blue-600 text-white items-center justify-center mb-3"><i data-lucide="bot" class="w-9 h-9"></i></div>
                         <h2 class="text-2xl font-bold text-slate-900">AI ผู้ช่วยแนะนำพรรค</h2>
                         <p class="text-sm text-slate-500 mt-2">ถามเกี่ยวกับนโยบาย แล้ว AI จะช่วยแนะนำพรรคที่เหมาะกับคุณ
                         </p>
@@ -369,7 +382,7 @@
                     <div id="chat-box"
                         class="border border-slate-200 rounded-2xl p-4 h-[400px] overflow-y-auto bg-slate-50 space-y-4 mb-4">
                         <div class="bg-blue-100 text-blue-900 p-3 rounded-xl w-fit max-w-[80%]">
-                            สวัสดี 👋 ฉันคือ AI ผู้ช่วยเลือกพรรค<br><br>
+                            สวัสดี ฉันคือ AI ผู้ช่วยเลือกพรรค<br><br>
                             ลองถามเช่น:<br>
                             • อยากได้ WiFi ดีขึ้น<br>
                             • อยากเน้นกิจกรรม<br>
@@ -409,9 +422,8 @@
                                     class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
                             </div>
                             <div>
-                                <label class="block text-sm font-semibold text-slate-700 mb-2">ลิงก์ภาพโปรไฟล์ (หรือ
-                                    Emoji
-                                    ประจำตัว)</label>
+                                <label class="block text-sm font-semibold text-slate-700 mb-2">ลิงก์รูปประจำตัวพรรค
+                                    (ไม่บังคับ)</label>
                                 <input type="text" id="edit-avatar" required
                                     class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
                             </div>
@@ -472,6 +484,10 @@
                             <button onclick="openElectionSettingsModal()"
                                 class="bg-blue-700 hover:bg-blue-600 text-white font-medium px-4 py-2 rounded-xl text-xs transition flex items-center gap-2">
                                 <i data-lucide="settings-2" class="w-4 h-4"></i> ตั้งค่าการเลือกตั้ง
+                            </button>
+                            <button onclick="exportDashboardExcel()"
+                                class="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-4 py-2 rounded-xl text-xs transition flex items-center gap-2">
+                                <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Export Excel (Dashboard)
                             </button>
                         </div>
                     </div>
@@ -622,6 +638,11 @@
                     <button type="button" onclick="switchAuthTab('register')"
                         class="text-xs font-semibold text-blue-600 hover:underline">คลิกเพื่อลงทะเบียน</button>
                 </div>
+                <!-- ลืมรหัสผ่าน (เฉพาะนักเรียน) -->
+                <div id="auth-forgot-link" class="text-center -mt-1">
+                    <button type="button" onclick="openForgotModal()"
+                        class="text-xs font-medium text-slate-400 hover:text-blue-600 hover:underline">ลืมรหัสผ่าน?</button>
+                </div>
             </form>
 
             <!-- VIEW: ลงทะเบียนสำหรับนักเรียน (ซ่อนไว้ก่อน) -->
@@ -747,6 +768,68 @@
                 </div>
             </form>
 
+        </div>
+    </div>
+
+    <!-- MODAL: Forgot Password (รีเซ็ตรหัสผ่านด้วย OTP ทางอีเมล) -->
+    <div id="forgot-modal"
+        class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
+            <div class="bg-gradient-to-r from-blue-800 to-indigo-900 text-white p-6 relative">
+                <button onclick="closeForgotModal()" class="absolute top-4 right-4 text-white hover:text-blue-200 transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+                <div class="flex items-center gap-3">
+                    <div class="p-2.5 bg-white/10 rounded-xl"><i data-lucide="key-round" class="w-5 h-5"></i></div>
+                    <div>
+                        <h3 class="text-lg font-bold">ลืมรหัสผ่าน</h3>
+                        <p class="text-xs text-blue-200 mt-0.5">ยืนยันตัวตนด้วยรหัส OTP ทางอีเมล</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ขั้นที่ 1: ระบุรหัสนักเรียน + อีเมล -->
+            <div id="forgot-step-1" class="p-6 space-y-4">
+                <p class="text-xs text-slate-500">กรอกรหัสนักเรียนและอีเมลที่ใช้รับรหัส ระบบจะส่ง OTP ไปยืนยันตัวตน</p>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">รหัสนักเรียน (5 หลัก)</label>
+                    <input type="text" id="forgot-student-id" maxlength="5" minlength="5" placeholder="ตัวอย่าง: 22222"
+                        class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">อีเมลรับรหัส OTP</label>
+                    <input type="email" id="forgot-email" placeholder="student@email.com"
+                        class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                </div>
+                <div id="forgot-err-1" class="hidden text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg p-2.5"></div>
+                <button onclick="forgotRequestOtp()" id="forgot-send-btn"
+                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl text-sm transition flex items-center justify-center gap-2">
+                    <i data-lucide="send" class="w-4 h-4"></i> <span id="forgot-send-text">ส่งรหัส OTP</span>
+                </button>
+            </div>
+
+            <!-- ขั้นที่ 2: กรอก OTP + ตั้งรหัสใหม่ -->
+            <div id="forgot-step-2" class="p-6 space-y-4 hidden">
+                <p class="text-xs text-slate-500">กรอกรหัส OTP ที่ส่งไปยัง <span id="forgot-email-display" class="font-semibold text-blue-700"></span> และตั้งรหัสผ่านใหม่</p>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">รหัส OTP (6 หลัก)</label>
+                    <input type="text" id="forgot-otp" maxlength="6" placeholder="000000"
+                        class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm tracking-[0.4em] text-center font-mono">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">รหัสผ่านใหม่</label>
+                    <input type="password" id="forgot-new-pw" placeholder="อย่างน้อย 6 ตัวอักษร"
+                        class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                </div>
+                <div id="forgot-err-2" class="hidden text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg p-2.5"></div>
+                <button onclick="forgotResetPassword()"
+                    class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl text-sm transition flex items-center justify-center gap-2">
+                    <i data-lucide="check" class="w-4 h-4"></i> ตั้งรหัสผ่านใหม่
+                </button>
+                <button onclick="forgotBackToStep1()" class="w-full text-slate-400 hover:text-slate-600 text-xs flex items-center justify-center gap-1">
+                    <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> เปลี่ยนรหัสนักเรียน/อีเมล
+                </button>
+            </div>
         </div>
     </div>
 
@@ -918,6 +1001,47 @@
         </div>
     </div>
 
+    <!-- MODAL: Edit Party (แอดมินแก้ไขข้อมูลพรรค) -->
+    <div id="edit-party-modal"
+        class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden">
+            <div class="bg-gradient-to-r from-indigo-800 to-slate-900 text-white p-6 relative">
+                <button onclick="closeEditPartyModal()" class="absolute top-4 right-4 text-slate-300 hover:text-white transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+                <div class="flex items-center gap-3">
+                    <div class="p-2.5 bg-white/10 rounded-xl"><i data-lucide="edit-3" class="w-5 h-5"></i></div>
+                    <div>
+                        <h3 class="text-lg font-bold">แก้ไขข้อมูลพรรค</h3>
+                        <p class="text-xs text-slate-300 mt-0.5">ปรับชื่อพรรคและนโยบาย (เฉพาะแอดมิน)</p>
+                    </div>
+                </div>
+            </div>
+            <form onsubmit="saveEditParty(event)" class="p-6 space-y-4">
+                <input type="hidden" id="edit-party-cand-id">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">ชื่อพรรค</label>
+                    <input type="text" id="edit-party-name-input" required
+                        class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">นโยบาย (บรรทัดละ 1 ข้อ)</label>
+                    <textarea id="edit-party-policies-input" rows="5" required
+                        class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"></textarea>
+                </div>
+                <div id="edit-party-err" class="hidden text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg p-2.5"></div>
+                <div class="flex justify-end gap-3 pt-2">
+                    <button type="button" onclick="closeEditPartyModal()"
+                        class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 px-5 rounded-xl text-sm transition">ยกเลิก</button>
+                    <button type="submit"
+                        class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 px-5 rounded-xl text-sm transition flex items-center gap-2">
+                        <i data-lucide="save" class="w-4 h-4"></i> บันทึก
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Main JavaScript -->
 
     <!-- TIMELINE SECTION -->
@@ -936,7 +1060,7 @@
             <div class="timeline-item active">
                 <div class="timeline-dot"></div>
                 <div class="timeline-content">
-                    <span class="timeline-date">1 สิงหาคม 2569</span>
+                    <span class="timeline-date">6 พฤษภาคม 2569</span>
                     <h4>วันเปิดรับสมัคร</h4>
                     <p>เปิดรับสมัครผู้ลงชิงตำแหน่งประธานนักเรียนอย่างเป็นทางการ</p>
                 </div>
@@ -945,7 +1069,7 @@
             <div class="timeline-item active">
                 <div class="timeline-dot"></div>
                 <div class="timeline-content">
-                    <span class="timeline-date">10 สิงหาคม 2569</span>
+                    <span class="timeline-date">16 พฤษภาคม 2569</span>
                     <h4>วันปราศรัยใหญ่</h4>
                     <p>ผู้สมัครทุกพรรคแสดงวิสัยทัศน์และนโยบายต่อหน้านักเรียน</p>
                 </div>
@@ -954,7 +1078,7 @@
             <div class="timeline-item current">
                 <div class="timeline-dot"></div>
                 <div class="timeline-content">
-                    <span class="timeline-date">15 สิงหาคม 2569</span>
+                    <span class="timeline-date">26 พฤษภาคม 2569</span>
                     <h4>วันลงคะแนน</h4>
                     <p>เปิดระบบลงคะแนนออนไลน์และจุดเลือกตั้งภายในโรงเรียน</p>
                 </div>
@@ -963,8 +1087,8 @@
             <div class="timeline-item">
                 <div class="timeline-dot"></div>
                 <div class="timeline-content">
-                    <span class="timeline-date">16 สิงหาคม 2569</span>
-                    <h4>วันประกาศผล</h4>
+                    <span class="timeline-date">27 พฤษภาคม 2569</span>
+                    <h4>วันประกาศและรับรองผล</h4>
                     <p>ประกาศผลการเลือกตั้งและรับรองผลอย่างเป็นทางการ</p>
                 </div>
             </div>
@@ -999,7 +1123,8 @@
                 <div class="history-image-section">
 
                     <div class="candidate-image-box">
-                        <img src="candidate-new.jpeg" alt="President" class="history-image">
+                        <img src="winner.jpg" alt="ประธานนักเรียน ปี 2568" class="history-image"
+                            onerror="this.style.display='none'">
                     </div>
 
                     <div class="history-badge">
@@ -1196,7 +1321,7 @@
                 </div>
 
                 <!-- Dev hint (shows OTP in browser for demo) -->
-                <div id="otp-dev-hint" class="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-center">
+                <div id="otp-dev-hint" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-center">
                     <p class="text-xs text-amber-700 font-medium">
                         <i data-lucide="info" class="w-3 h-3 inline mr-1"></i>
                         <span class="font-bold">โหมดสาธิต:</span> รหัส OTP ของคุณคือ <strong id="otp-dev-code"
@@ -1315,12 +1440,13 @@
         </div>
     </div>
 
+    <script src="api.js"></script>
     <script src="script.js"></script>
 
     <footer class="bg-white border-t border-slate-200 mt-12 py-8 text-center text-xs text-slate-500">
         <div class="max-w-7xl mx-auto px-4">
             <p class="mb-2">ระบบสนับสนุนการเลือกตั้งโรงเรียนมัธยมปลายอย่างเป็นประชาธิปไตยแบบอิเล็กทรอนิกส์</p>
-            <p>&copy; 2026 โรงเรียนมัธยมศึกษา.</p>
+            <p>&copy; พ.ศ. 2569 โรงเรียนมัธยมศึกษา.</p>
         </div>
     </footer>
 

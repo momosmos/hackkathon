@@ -12,11 +12,16 @@ export const loginAdmin = async (req, res) => {
         const result = await service.loginAdmin(username, password);
         
         if (!result.success) {
-            return res.status(401).json({ message: result.message });
+            return res.status(401).json({ status: "error", message: result.message });
         }
 
-        // ส่งข้อมูลแอดมินกลับไปแปะโชว์บนหน้าเว็บ
-        return res.status(200).json(result.data);
+        // ส่งข้อมูลแอดมิน + JWT กลับไปให้หน้าเว็บเก็บไว้เรียก API ต่อ
+        return res.status(200).json({
+            status: "success",
+            message: result.message,
+            data: result.data,
+            token: result.token,
+        });
     } catch (err) {
         return res.status(500).json({ message: "ADMIN LOGIN ERROR", error: err.message });
     }
@@ -119,11 +124,51 @@ export const addCandidateMember = async (req, res) => {
 export const updateCandidateStatus = async (req, res) => {
     try {
         const { candidate_id, status } = req.body; // status ส่งมาเป็น 'Active' หรือ 'Disqualified'
-        
+
         await service.updateCandidateStatus(candidate_id, status);
         return res.status(200).json({ message: `CANDIDATE STATUS UPDATED TO ${status}` });
     } catch (err) {
         return res.status(500).json({ message: "UPDATE CANDIDATE STATUS ERROR", error: err.message });
+    }
+};
+
+// แอดมินแก้ไขข้อมูลพรรค (ชื่อพรรค + นโยบาย)
+export const updateCandidate = async (req, res) => {
+    try {
+        const { candidate_id } = req.params;
+        const { party_name, policy_detail } = req.body;
+        if (!party_name) return res.status(400).json({ status: "error", message: "กรุณาระบุชื่อพรรค" });
+        const ok = await service.updateCandidate(candidate_id, party_name, policy_detail || "");
+        if (!ok) return res.status(404).json({ status: "error", message: "ไม่พบพรรคนี้" });
+        return res.status(200).json({ status: "success", message: "แก้ไขข้อมูลพรรคเรียบร้อยแล้ว" });
+    } catch (err) {
+        return res.status(500).json({ status: "error", message: "UPDATE CANDIDATE ERROR", error: err.message });
+    }
+};
+
+// แอดมินลบพรรค
+export const deleteCandidate = async (req, res) => {
+    try {
+        const { candidate_id } = req.params;
+        const ok = await service.deleteCandidate(candidate_id);
+        if (!ok) return res.status(404).json({ status: "error", message: "ไม่พบพรรคนี้" });
+        return res.status(200).json({ status: "success", message: "ลบพรรคเรียบร้อยแล้ว" });
+    } catch (err) {
+        return res.status(500).json({ status: "error", message: "DELETE CANDIDATE ERROR", error: err.message });
+    }
+};
+
+// แอดมินอัปเดตการตั้งค่างานเลือกตั้ง (ชื่องาน + เวลาปิดหีบ) — ใช้แชร์นับถอยหลังให้ทุกผู้ใช้
+export const updateElectionSettings = async (req, res) => {
+    try {
+        const { event_id, event_name, end_datetime } = req.body;
+        if (!event_id || !end_datetime) {
+            return res.status(400).json({ status: "error", message: "กรุณาระบุงานและเวลาปิดหีบ" });
+        }
+        await service.updateEventSettings(event_id, event_name || "", end_datetime);
+        return res.status(200).json({ status: "success", message: "บันทึกการตั้งค่าการเลือกตั้งเรียบร้อยแล้ว" });
+    } catch (err) {
+        return res.status(500).json({ status: "error", message: "UPDATE SETTINGS ERROR", error: err.message });
     }
 };
 
@@ -152,5 +197,19 @@ export const getAllMembersForAdmin = async (req, res) => {
         return res.status(200).json(members);
     } catch (err) {
         return res.status(500).json({ message: "FETCH ALL MEMBERS ERROR", error: err.message });
+    }
+};
+
+// ลบนักเรียนออกจากระบบ
+export const deleteStudent = async (req, res) => {
+    try {
+        const { student_id } = req.params;
+        const affected = await service.deleteStudent(student_id);
+        if (!affected) {
+            return res.status(404).json({ status: "error", message: "ไม่พบนักเรียนรหัสนี้ในระบบ" });
+        }
+        return res.status(200).json({ status: "success", message: "ลบนักเรียนเรียบร้อยแล้ว" });
+    } catch (err) {
+        return res.status(500).json({ status: "error", message: "DELETE STUDENT ERROR", error: err.message });
     }
 };

@@ -3,8 +3,18 @@ import db from '../config/db.js';
 /**
  * 1. ดึงงานเลือกตั้งที่เปิดอยู่ (Active Event)
  * ใช้เช็คว่าตอนนี้เลือกตั้งได้ไหม และดึง event_id มาใช้งาน
+ *
+ * ปิดหีบอัตโนมัติ (Auto-close): ก่อนเลือกงานที่เปิดอยู่ จะปิดงานที่ "หมดเวลาแล้ว" ให้อัตโนมัติ
+ * (is_active=1 แต่ end_datetime < เวลาปัจจุบัน) -> ตั้ง is_active=0
+ *
+ * หมายเหตุ: การกดปิดแบบ manual (set is_active=0) ไม่เกี่ยวกับเงื่อนไขเวลานี้
+ * จึงปิดได้ "ทันที" เสมอ ไม่ต้องรอถึงเวลาปิดหีบ
  */
 export const getActiveEvent = async () => {
+    // Auto-close งานที่เลยกำหนดเวลาปิดหีบ
+    await db.query(
+        'UPDATE election_event SET is_active = 0 WHERE is_active = 1 AND end_datetime < NOW()'
+    );
     const [rows] = await db.query(
         'SELECT * FROM election_event WHERE is_active = 1 LIMIT 1'
     );
