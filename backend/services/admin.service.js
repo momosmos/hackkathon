@@ -138,21 +138,34 @@ export const updateEventSettings = async (eventId, eventName, endDatetime) => {
     return await repository.updateEventSettings(eventId, eventName, endDatetime);
 };
 
+// รีเซ็ตคะแนน (ล้างบัตร + สิทธิ์การใช้สิทธิ์ของงานนั้น)
+export const resetElectionVotes = async (eventId) => {
+    return await repository.resetElectionVotes(eventId);
+};
+
+// ล้างข้อมูลการเลือกตั้งทั้งหมด (Reset ทั้งระบบ)
+export const fullResetElectionData = async () => {
+    try {
+        return await repository.fullResetElectionData();
+    } catch (error) {
+        console.error("[ADMIN SERVICE] fullResetElectionData error:", error);
+        throw error;
+    }
+};
+
 // ==========================================
 // 📊 5. Logic รายงานผลแดชบอร์ดสถิติ (Analytics)
 // ==========================================
 export const getDashboardData = async (eventId) => {
-    // 1. สถิติผู้มาใช้สิทธิ์ (เช็คชื่อจาก voter_participation เทียบนักเรียนทั้งหมด)
     const stats = await voteRepo.getVoterStatistics(eventId);
-
-    // 2. นับคะแนนรายเบอร์ด้วยการ Hash เบอร์ที่เป็นไปได้มาเทียบ (one-way ไม่ถอดกลับ)
     const voteResults = await voteRepo.getVoteCounting(eventId);
+    const voteReceipts = await repository.getAllVoteReceipts(eventId);
 
-    // 3. มัดรวมส่งกลับให้ Controller
     return {
         total_voters_turnout: stats.voted,
         total_eligible: stats.total,
         turnout_percent: stats.total > 0 ? ((stats.voted / stats.total) * 100).toFixed(2) : "0.00",
-        voting_results: voteResults
+        voting_results: voteResults,
+        vote_receipts: voteReceipts
     };
 };

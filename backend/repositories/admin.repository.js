@@ -160,6 +160,54 @@ export const updateEventSettings = async (eventId, eventName, endDatetime) => {
     return result.affectedRows > 0;
 };
 
+// 10.8 รีเซ็ตคะแนน: ล้างบัตรลงคะแนนเท่านั้น (Transaction)
+//      สมุดเช็คชื่อผู้ใช้สิทธิ์ (voter_participation) กับประวัติแชท AI (ai_recommendation) จะถูกเก็บไว้เสมอ
+export const resetElectionVotes = async (eventId) => {
+    const conn = await dbconnect1.getConnection();
+    try {
+        await conn.beginTransaction();
+        if (eventId) {
+            await conn.query('DELETE FROM vote_record WHERE event_id = ?', [eventId]);
+        } else {
+            await conn.query('DELETE FROM vote_record');
+        }
+        await conn.commit();
+        return true;
+    } catch (error) {
+        await conn.rollback();
+        throw error;
+    } finally {
+        conn.release();
+    }
+};
+
+// 10.9 ล้างข้อมูลการเลือกตั้งทั้งหมด (Reset ทั้งระบบ)
+// - ลบ vote_record, voter_participation (คะแนน + สิทธิ์)
+// - ลบ candidate, candidate_member (พรรคผู้สมัคร)
+// - ลบ election_event (รอบเลือกตั้ง)
+// - เก็บ student (ข้อมูลนักเรียน)
+// - เก็บ ai_recommendation (ประวัติแชท AI)
+// - เก็บ admin (ผู้ดูแลระบบ)
+export const fullResetElectionData = async () => {
+    const conn = await dbconnect1.getConnection();
+    try {
+        await conn.beginTransaction();
+        await conn.query('DELETE FROM voter_participation');
+        await conn.query('DELETE FROM vote_record');
+        await conn.query('DELETE FROM candidate_member');
+        await conn.query('DELETE FROM candidate');
+        await conn.query('DELETE FROM election_event');
+        await conn.commit();
+        return true;
+    } catch (error) {
+        await conn.rollback();
+        console.error("[ADMIN REPOSITORY] fullResetElectionData error:", error);
+        throw error;
+    } finally {
+        conn.release();
+    }
+};
+
 
 // ==========================================
 // 📊 โซนที่ 4: สรุปผลคะแนนหน้า Dashboard (Analytics & Results)
@@ -207,6 +255,18 @@ export const getAllMembersForAdmin = async () => {
          LEFT JOIN candidate_member cm ON s.student_id = cm.student_id
          LEFT JOIN candidate c ON cm.candidate_id = c.candidate_id
          ORDER BY member_type DESC, s.student_id ASC`
+    );
+    return rows;
+};
+
+// 14. ดึงประวัติ Vote Receipt ทั้งหมด (บันทึกความปลอดภัย)
+export const getAllVoteReceipts = async (eventId) => {
+    const [rows] = await dbconnect1.query(
+        `SELECT vote_id, vote_receipt, voted_at
+         FROM vote_record
+         WHERE event_id = ?
+         ORDER BY voted_at DESC`,
+        [eventId]
     );
     return rows;
 };

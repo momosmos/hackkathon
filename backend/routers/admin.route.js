@@ -66,5 +66,8 @@ router.put("/events/settings", controller.updateElectionSettings)
 // GET /api/admin/analytics/:event_id ➔ ดึงสถิติจำนวนคนมาโหวต และผลคะแนนโหวต
 router.get("/analytics/:event_id", controller.getDashboardAnalytics)
 
+// DELETE /api/admin/full-reset ➔ ล้างข้อมูลการเลือกตั้งทั้งหมด (Reset ทั้งระบบ)
+router.delete("/full-reset", controller.fullResetElection)
+
 
 export default router

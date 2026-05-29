@@ -66,7 +66,7 @@ export const resetPassword = async (resetToken, inputOtp, newPassword) => {
 // ==========================================
 export const register = async (registerData) => {
     // รับข้อมูล 5 ช่อง + confirm_password จากหน้าเว็บ
-    const { student_id, student_name, student_class, end_year, password, confirm_password } = registerData;
+    const { student_id, student_name, student_class, start_year, end_year, password, confirm_password } = registerData;
 
     // ก. ตรวจสอบรหัสผ่านและการยืนยันรหัสผ่าน
     if (password !== confirm_password) {
@@ -85,10 +85,11 @@ export const register = async (registerData) => {
 
     // ง. บันทึกข้อมูลผ่าน Repository (ส่งไปแค่ 5 ช่องที่จำเป็น)
     const isSuccess = await studentRepo.registerStudent({
-        student_id, 
-        student_name, 
-        student_class, 
-        end_year, 
+        student_id,
+        student_name,
+        student_class,
+        start_year,
+        end_year,
         password: hashedPassword
     });
 

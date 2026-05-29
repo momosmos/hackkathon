@@ -80,9 +80,9 @@ async function run() {
     await ensureUniqueIndex("voter_participation", "uq_event_email", "event_id, voter_email");
 
     // 0) ล้างคะแนน/การเช็คชื่อเดิม เพื่อเริ่มสาธิตใหม่ (ตารางคะแนนเป็นความลับ ไม่กระทบตัวตน)
-    await db.query("DELETE FROM voter_participation");
-    await db.query("DELETE FROM vote_record");
-    console.log("  ✓ ล้างคะแนนและบันทึกการใช้สิทธิ์เดิม");
+    // await db.query("DELETE FROM voter_participation");
+    // await db.query("DELETE FROM vote_record");
+    // console.log("  ✓ ล้างคะแนนและบันทึกการใช้สิทธิ์เดิม");
 
     // 1) Admins: ลบของเก่าทั้งหมด (รวม admin_id 1 และ 6) แล้วใส่บัญชีที่กำหนดใหม่ (bcrypt)
     await db.query("DELETE FROM admin");
@@ -131,9 +131,11 @@ async function run() {
             [eventId]
         );
     } else {
+        const [[{ admin_id: adminId }]] = await db.query("SELECT admin_id FROM admin WHERE username = '11111' LIMIT 1");
         const [r] = await db.query(
             `INSERT INTO election_event (event_name, academic_year, start_datetime, end_datetime, is_active, admin_id)
-             VALUES ('เลือกตั้งประธานนักเรียน ประจำปีการศึกษา 2569', 2569, DATE_SUB(NOW(), INTERVAL 1 DAY), DATE_ADD(NOW(), INTERVAL 1 DAY), 1, 1)`
+             VALUES ('เลือกตั้งประธานนักเรียน ประจำปีการศึกษา 2569', 2569, DATE_SUB(NOW(), INTERVAL 1 DAY), DATE_ADD(NOW(), INTERVAL 1 DAY), 1, ?)`,
+            [adminId]
         );
         eventId = r.insertId;
     }

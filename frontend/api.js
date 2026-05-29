@@ -21,6 +21,7 @@ async function apiFetch(path, { method = "GET", body = null, auth = false } = {}
         const t = Auth.getToken();
         if (t) headers["Authorization"] = `Bearer ${t}`;
     }
+    console.log(`[API] ${method} ${path} auth=${auth} token=${Auth.getToken() ? 'yes' : 'no'}`);
     const res = await fetch(`${API_BASE}${path}`, {
         method,
         headers,
@@ -29,12 +30,14 @@ async function apiFetch(path, { method = "GET", body = null, auth = false } = {}
     let data = null;
     try { data = await res.json(); } catch { data = null; }
     if (!res.ok) {
+        console.error(`[API] Error ${res.status} for ${method} ${path}:`, data);
         const msg = (data && (data.message || data.error)) || `เกิดข้อผิดพลาด (HTTP ${res.status})`;
         const err = new Error(msg);
         err.status = res.status;
         err.data = data;
         throw err;
     }
+    console.log(`[API] ${method} ${path} success`);
     return data;
 }
 
@@ -65,6 +68,8 @@ const ApiClient = {
     // ----- AI -----
     askAI: (message) =>
         apiFetch("/ai/ask", { method: "POST", auth: true, body: { message } }),
+    getChatHistory: () =>
+        apiFetch("/ai/history", { auth: true }),
 
     // ----- Admin -----
     adminGetStudents: () => apiFetch("/admin/students", { auth: true }),
@@ -87,6 +92,8 @@ const ApiClient = {
         apiFetch("/admin/events/status", { method: "PUT", auth: true, body: { event_id, is_active } }),
     adminAnalytics: (event_id) =>
         apiFetch(`/admin/analytics/${event_id}`, { auth: true }),
+    adminFullReset: () =>
+        apiFetch("/admin/full-reset", { method: "DELETE", auth: true }),
 };
 
 window.ApiClient = ApiClient;

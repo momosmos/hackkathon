@@ -8,7 +8,7 @@ import * as emailUtil from '../utils/email.util.js';
  * สำหรับหน้า UI ที่คุณมอสส่งมา (ID, Name, Pass, Class)
  */
 export const register = async (registerData) => {
-    const { student_id, password, student_name, student_class, graduation_year } = registerData;
+    const { student_id, password, student_name, student_class, start_year, end_year } = registerData;
 
     // เช็คว่ามีรหัสนี้ในระบบโรงเรียนไหม
     const student = await studentRepo.findById(student_id);
@@ -26,7 +26,8 @@ export const register = async (registerData) => {
         student_name,
         password: hashedPassword,
         student_class,
-        graduation_year
+        start_year,
+        end_year
     });
 };
 

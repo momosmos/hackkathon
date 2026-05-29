@@ -6,20 +6,15 @@ import db from '../config/db.js';
 
 // 1. ลงทะเบียนนักเรียนใหม่ (เด็กกดสมัครเอง ใช้ INSERT)
 export const registerStudent = async (data) => {
-    // รับข้อมูล 5 ช่อง (ไม่มี confirm_password เพราะ Service จัดการเช็คและทิ้งไปแล้ว)
-    const { student_id, student_name, student_class, end_year, password, student_email } = data;
+    const { student_id, student_name, student_class, start_year, end_year, password, student_email } = data;
 
-    // เติมช่องที่ Schema บังคับ NOT NULL ให้ครบ:
-    // - major / start_year ใช้ค่าเริ่มต้น (ยังไม่เก็บตอนสมัคร)
-    // - student_email ใช้อีเมลที่กรอก ถ้าไม่กรอกใช้ placeholder อิงรหัสนักเรียน (กัน UNIQUE ชนกัน)
-    //   ผู้ใช้กรอกอีเมลจริงอีกครั้งตอนขอ OTP เพื่อโหวต
     const email = (student_email && student_email.trim()) || `${student_id}@student.local`;
 
     const [result] = await db.query(
         `INSERT INTO student (
             student_id, student_name, student_class, major, start_year, end_year, password, student_email, student_status
-         ) VALUES (?, ?, ?, 'N/A', 0, ?, ?, ?, 'Active')`,
-        [student_id, student_name, student_class, end_year, password, email]
+         ) VALUES (?, ?, ?, 'N/A', ?, ?, ?, ?, 'Active')`,
+        [student_id, student_name, student_class, start_year || 0, end_year, password, email]
     );
     return result.affectedRows > 0;
 };

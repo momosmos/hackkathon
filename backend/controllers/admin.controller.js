@@ -213,3 +213,14 @@ export const deleteStudent = async (req, res) => {
         return res.status(500).json({ status: "error", message: "DELETE STUDENT ERROR", error: err.message });
     }
 };
+
+// ล้างข้อมูลการเลือกตั้งทั้งหมด (Reset ทั้งระบบ)
+export const fullResetElection = async (req, res) => {
+    try {
+        await service.fullResetElectionData();
+        return res.status(200).json({ status: "success", message: "รีเซ็ตข้อมูลการเลือกตั้งทั้งหมดแล้ว" });
+    } catch (err) {
+        console.error("[ADMIN CONTROLLER] fullResetElection error:", err);
+        return res.status(500).json({ status: "error", message: "FULL RESET ERROR", error: err.message });
+    }
+};

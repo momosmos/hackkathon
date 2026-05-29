@@ -191,6 +191,9 @@ function switchTab(tabId) {
     document.querySelectorAll(".tab-page").forEach(page => page.classList.add("hidden"));
     document.getElementById(`page-${tabId}`).classList.remove("hidden");
 
+    if (tabId === "chatbot") {
+        loadChatHistory();
+    }
     if (tabId === "candidate-panel") {
         loadCurrentCandidateData();
     }
@@ -235,6 +238,8 @@ async function loadAdminStudents() {
             role: "student",
             member_type: r.member_type,
         }));
+        // โหลดประวัติ Vote Receipt ก่อนแสดงผล Admin Panel
+        await loadVoteReceiptLogs();
         renderAdminPanel();
         lucide.createIcons();
     } catch (err) {
@@ -269,6 +274,8 @@ function closeAuthModal() {
     fields.forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
     const gradYear = document.getElementById("auth-grad-year");
     if (gradYear) { gradYear.value = ""; delete gradYear.dataset.gradYearNum; }
+    const startYear = document.getElementById("auth-start-year");
+    if (startYear) { startYear.value = ""; delete startYear.dataset.startYearNum; }
     const strengthWrap = document.getElementById("password-strength-wrap");
     if (strengthWrap) strengthWrap.classList.add("hidden");
     const regErr = document.getElementById("auth-reg-error-msg");
@@ -346,35 +353,113 @@ const CURRENT_YEAR_TH = 2569;
 
 /**
  * calcGraduationYear()
- * คำนวณปีที่จบการศึกษา ม.6 จากระดับชั้นปัจจุบัน
- * ตรรกะ: ปีที่จบ = ปีปัจจุบัน (2569) + (6 - ระดับชั้นปัจจุบัน)
- * ตัวอย่าง:
- *   ม.1 → 2569 + (6-1) = 2574... แต่โจทย์ระบุ ม.1 = 2575
- *   → ใช้สูตร: 2569 + (7 - gradeNum)
- *   ม.1: 2569 + 6 = 2575 ✓
- *   ม.4: 2569 + 3 = 2572 ✓
- *   ม.6: 2569 + 1 = 2570 ✓
+ * คำนวณปีที่เข้า-จบจากระดับชั้น
+ * ม.1-ม.3: คำนวณทันที (โรงเรียนเดียวต่อเนื่อง)
+ * ม.4-ม.6: แสดงช่องเลือกว่าเข้าตั้งแต่ ม.1 หรือ ม.4 ก่อนแล้วคำนวณ
  */
 function calcGraduationYear() {
     const gradYearInput = document.getElementById("auth-grad-year");
+    const startYearInput = document.getElementById("auth-start-year");
     const gradeSelect = document.getElementById("auth-grade");
+    const entryLevelWrap = document.getElementById("entry-level-wrap");
     if (!gradYearInput || !gradeSelect) return;
 
     const gradeVal = gradeSelect.value; // "ม.1" … "ม.6"
     const gradeMatch = gradeVal.match(/(\d+)/);
     const gradeNum = gradeMatch ? parseInt(gradeMatch[1], 10) : null;
 
+    // ซ่อน/ล้างช่องเลือกระดับชั้นที่เข้า (เป็น null เมื่อไม่ใช่ ม.4-ม.6)
+    window._entryGrade = null;
+    if (entryLevelWrap) entryLevelWrap.classList.add("hidden");
+
     if (!gradeNum) {
         gradYearInput.value = "";
+        if (startYearInput) startYearInput.value = "";
+        delete gradYearInput.dataset.gradYearNum;
+        if (startYearInput) delete startYearInput.dataset.startYearNum;
         gradYearInput.placeholder = "เลือกระดับชั้นเพื่อคำนวณอัตโนมัติ";
         return;
     }
 
-    // สูตร: 2569 + (7 - gradeNum)
-    // ม.1 → 2575, ม.2 → 2574, ม.3 → 2573, ม.4 → 2572, ม.5 → 2571, ม.6 → 2570
-    const gradYear = CURRENT_YEAR_TH + (7 - gradeNum);
-    gradYearInput.value = `พ.ศ. ${gradYear}`;
-    gradYearInput.dataset.gradYearNum = gradYear;
+    // --- ม.4-ม.6: ต้องเลือกก่อนว่าเข้ามาตั้งแต่ ม.1 หรือ ม.4 ---
+    if (gradeNum >= 4) {
+        gradYearInput.value = "";
+        if (startYearInput) startYearInput.value = "";
+        delete gradYearInput.dataset.gradYearNum;
+        if (startYearInput) delete startYearInput.dataset.startYearNum;
+        if (entryLevelWrap) entryLevelWrap.classList.remove("hidden");
+        // เคลียร์ radio
+        const radios = document.getElementsByName("entry-grade");
+        for (const r of radios) r.checked = false;
+        return;
+    }
+
+    // --- ม.1-ม.3: ใช้ค่าตายตัว (Hardcode) อิงจาก currentYear = 2569 ---
+    if (gradeNum === 1) {
+        endYear = 2575;  // currentYear + 6
+        startYear = 2569; // currentYear
+    } else if (gradeNum === 2) {
+        endYear = 2574;  // currentYear + 5
+        startYear = 2568; // currentYear - 1
+    } else if (gradeNum === 3) {
+        endYear = 2573;  // currentYear + 4
+        startYear = 2567; // currentYear - 2
+    }
+
+    gradYearInput.value = `พ.ศ. ${endYear}`;
+    gradYearInput.dataset.gradYearNum = endYear;
+
+    if (startYearInput) {
+        startYearInput.value = `พ.ศ. ${startYear}`;
+        startYearInput.dataset.startYearNum = startYear;
+    }
+
+    const hintEl = document.getElementById("auth-year-hint");
+    if (hintEl) hintEl.classList.add("hidden");
+}
+
+/**
+ * onEntryGradeChange()
+ * เรียกเมื่อผู้ใช้เลือกระดับชั้นที่เข้ามา (สำหรับ ม.4-ม.6)
+ */
+function onEntryGradeChange() {
+    const gradYearInput = document.getElementById("auth-grad-year");
+    const startYearInput = document.getElementById("auth-start-year");
+    const gradeSelect = document.getElementById("auth-grade");
+    if (!gradYearInput || !gradeSelect) return;
+
+    const gradeVal = gradeSelect.value;
+    const gradeMatch = gradeVal.match(/(\d+)/);
+    const gradeNum = gradeMatch ? parseInt(gradeMatch[1], 10) : null;
+
+    const entryRadios = document.getElementsByName("entry-grade");
+    let entryGrade = null;
+    for (const r of entryRadios) {
+        if (r.checked) { entryGrade = parseInt(r.value, 10); break; }
+    }
+
+    if (!gradeNum || !entryGrade) return;
+
+    let endYear, startYear;
+
+    if (gradeNum === 4) {
+        endYear = 2572;
+        startYear = entryGrade === 1 ? 2566 : 2569;
+    } else if (gradeNum === 5) {
+        endYear = 2571;
+        startYear = entryGrade === 1 ? 2565 : 2568;
+    } else if (gradeNum === 6) {
+        endYear = 2570;
+        startYear = entryGrade === 1 ? 2564 : 2567;
+    }
+
+    gradYearInput.value = `พ.ศ. ${endYear}`;
+    gradYearInput.dataset.gradYearNum = endYear;
+
+    if (startYearInput) {
+        startYearInput.value = `พ.ศ. ${startYear}`;
+        startYearInput.dataset.startYearNum = startYear;
+    }
 
     const hintEl = document.getElementById("auth-year-hint");
     if (hintEl) hintEl.classList.add("hidden");
@@ -431,9 +516,21 @@ function handleRegisterSubmit(e) {
     const confirmPassword = document.getElementById("auth-confirm-password").value;
     const gradeInput = document.getElementById("auth-grade").value;
     const gradYearEl = document.getElementById("auth-grad-year");
-    const gradYear = gradYearEl ? parseInt(gradYearEl.dataset.gradYearNum, 10) : null;
+    const startYearEl = document.getElementById("auth-start-year");
+    
+  // ดูดตัวเลขจากช่อง Input โดยตรง
+    const gradYear = (gradYearEl && gradYearEl.value) ? parseInt(gradYearEl.value.replace(/\D/g, ''), 10) : null;
+    const startYear = (startYearEl && startYearEl.value) ? parseInt(startYearEl.value.replace(/\D/g, ''), 10) : null;
+
+    console.log("ปีที่เข้า:", startYear, "| ปีที่จบ:", gradYear);
+
+    // 🚨 เติม 3 บรรทัดนี้ลงไปตรงนี้เลยครับ! 🚨
+    console.log("=== ตรวจกระเป๋าก่อนส่ง API ===");
+    console.log("startYear ที่ดึงมาได้คือ:", startYear);
+    console.log("gradYear ที่ดึงมาได้คือ:", gradYear);
 
     if (!nameInput) {
+        // ... โค้ดเดิมยาวๆ ... {
         errorTextSpan.innerText = "กรุณากรอกชื่อและนามสกุลจริงของคุณ";
         errorMsgDiv.classList.remove("hidden");
         return;
@@ -469,6 +566,7 @@ function handleRegisterSubmit(e) {
                 student_id: studentId,
                 student_name: nameInput,
                 student_class: gradeInput,
+                start_year: startYear,
                 end_year: gradYear,
                 password,
                 confirm_password: confirmPassword,
@@ -687,6 +785,8 @@ function updateUI() {
     renderVotingArea();
     renderJoinCandidateBtn();
     renderCandidatesGrid();
+    // โหลดประวัติ Vote Receipt ก่อนแสดงผล Admin Panel (fire-and-forget)
+    loadVoteReceiptLogs();
     renderAdminPanel();
     renderWinnerResults();
     lucide.createIcons();
@@ -1037,6 +1137,25 @@ function renderWinnerResults() {
     winnerBars.innerHTML = barsHTML;
 }
 
+/**
+ * ดึงประวัติ Vote Receipt จากฐานข้อมูลมาแสดงใน Audit Log
+ */
+async function loadVoteReceiptLogs() {
+    if (!currentUser || currentUser.role !== "admin") return;
+    if (!currentEventId) return;
+    try {
+        const res = await ApiClient.adminAnalytics(currentEventId);
+        const receipts = res.vote_receipts || [];
+        // แปลงเป็นรูปแบบเดียวกับ auditLogs เดิม
+        auditLogs = receipts.map(r => ({
+            voterId: r.vote_receipt,
+            timestamp: new Date(r.voted_at).toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })
+        }));
+    } catch (err) {
+        console.warn("loadVoteReceiptLogs error:", err);
+    }
+}
+
 function renderAdminPanel() {
     const tbody = document.getElementById("admin-students-tbody");
     const auditLogsContainer = document.getElementById("admin-audit-logs");
@@ -1188,7 +1307,8 @@ async function executeVote() {
         closeVoteConfirmModal();
         await loadElectionData();
         updateUI();
-        showAdminToast("ลงคะแนนสำเร็จ! รหัสใบเสร็จ: " + (res.receipt || ""));
+        // แสดง Popup สำเร็จพร้อม Receipt และนับถอยหลัง 15 วินาที
+        showVoteSuccessPopup(res.receipt || "VOTE-SUCCESS");
     } catch (err) {
         closeVoteConfirmModal();
         if (err.status === 409) {
@@ -1572,6 +1692,7 @@ async function executeAdminPwAction() {
         const res = await ApiClient.loginAdmin(currentUser.id, pw);
         ApiClient.Auth.setToken(res.token); // ต่ออายุ token
     } catch (err) {
+        console.error("[FRONTEND] executeAdminPwAction re-auth error:", err);
         errEl.querySelector("span").innerText = "รหัสผ่านไม่ถูกต้อง กรุณาลองอีกครั้ง";
         errEl.classList.remove("hidden");
         lucide.createIcons();
@@ -1598,6 +1719,82 @@ function showAdminToast(msg) {
     lucide.createIcons();
     clearTimeout(t._timer);
     t._timer = setTimeout(() => { t.style.opacity = "0"; t.style.transform = "translateY(8px)"; }, 3000);
+}
+
+// --- Vote Success Popup (แสดงหลังโหวตสำเร็จพร้อม Receipt และนับถอยหลัง 15 วินาที) ---
+let voteSuccessTimer = null;
+let voteSuccessCountdown = 15;
+
+function showVoteSuccessPopup(receipt) {
+    voteSuccessCountdown = 15;
+    let p = document.getElementById("vote-success-popup");
+    if (!p) {
+        p = document.createElement("div");
+        p.id = "vote-success-popup";
+        p.className = "fixed inset-0 z-[1000] hidden items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm";
+        p.innerHTML = `
+            <div id="vote-success-popup-card" class="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden" style="animation: modalPop .25s cubic-bezier(0.34,1.4,0.64,1) both;">
+                <div class="bg-gradient-to-r from-emerald-500 to-teal-600 text-white p-6 text-center relative">
+                    <button onclick="closeVoteSuccessPopup()" class="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                    <div class="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <i data-lucide="check-circle" class="w-10 h-10"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-1">โหวตสำเร็จ!</h3>
+                    <p class="text-emerald-100 text-sm">บันทึกการลงคะแนนเรียบร้อยแล้ว</p>
+                </div>
+                <div class="p-6 text-center">
+                    <div class="bg-slate-50 rounded-xl p-4 mb-5 border border-slate-200">
+                        <p class="text-xs text-slate-500 mb-1">หมายเลขใบเสร็จรับเงิน (Vote Receipt)</p>
+                        <p id="vote-receipt-code" class="font-mono text-lg font-bold text-emerald-700 tracking-wider"></p>
+                    </div>
+                    <div class="flex items-center justify-center gap-2 mb-4">
+                        <i data-lucide="shield-check" class="w-4 h-4 text-emerald-600"></i>
+                        <p class="text-xs text-slate-500">การลงคะแนนของคุณถูกบันทึกด้วยระบบเข้ารหัสนิรนาม</p>
+                    </div>
+                    <div class="flex items-center justify-center gap-2 text-sm text-slate-600 mb-6">
+                        <i data-lucide="clock" class="w-4 h-4"></i>
+                        <span>ปิดอัตโนมัติในอีก <b id="vote-success-countdown" class="text-emerald-600 font-bold">15</b> วินาที</span>
+                    </div>
+                    <button onclick="closeVoteSuccessPopup()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl text-sm transition flex items-center justify-center gap-2">
+                        <i data-lucide="arrow-right" class="w-4 h-4"></i> ดูผลสถิติการเลือกตั้ง
+                    </button>
+                </div>
+            </div>`;
+        document.body.appendChild(p);
+    }
+
+    // Set receipt code
+    document.getElementById("vote-receipt-code").innerText = receipt || "N/A";
+    p.classList.remove("hidden");
+    p.classList.add("flex");
+    lucide.createIcons();
+
+    // Clear any existing timer
+    if (voteSuccessTimer) clearInterval(voteSuccessTimer);
+
+    // Start countdown
+    voteSuccessTimer = setInterval(() => {
+        voteSuccessCountdown--;
+        const countdownEl = document.getElementById("vote-success-countdown");
+        if (countdownEl) countdownEl.innerText = voteSuccessCountdown;
+        if (voteSuccessCountdown <= 0) {
+            closeVoteSuccessPopup();
+        }
+    }, 1000);
+}
+
+function closeVoteSuccessPopup() {
+    if (voteSuccessTimer) {
+        clearInterval(voteSuccessTimer);
+        voteSuccessTimer = null;
+    }
+    const p = document.getElementById("vote-success-popup");
+    if (p) {
+        p.classList.add("hidden");
+        p.classList.remove("flex");
+    }
 }
 
 // --- Success Popup (Pop-up กลางจอแจ้งผลการทำงานสำคัญของแอดมิน) ---
@@ -1770,12 +1967,18 @@ function toggleElectionStatus() {
 function resetElectionData() {
     openAdminPwModal(
         "ยืนยันการรีเซ็ตข้อมูลทั้งหมด",
-        "จะลบคะแนนโหวตทั้งหมดและคืนสิทธิ์โหวตให้นักเรียนทุกคน ไม่สามารถย้อนกลับได้",
+        "จะลบคะแนนโหวต, สิทธิ์โหวต, พรรคผู้สมัคร และรอบเลือกตั้งทั้งหมด ข้อมูลนักเรียนและประวัติแชท AI จะถูกเก็บไว้ ไม่สามารถย้อนกลับได้",
         "ยืนยัน รีเซ็ตทั้งหมด",
-        () => {
-            // หมายเหตุ: เวอร์ชันเชื่อม Backend ยังไม่มี endpoint สำหรับล้างคะแนน
-            // ให้ใช้คำสั่ง `npm run seed` ฝั่งเซิร์ฟเวอร์เพื่อรีเซ็ตข้อมูลแทน
-            showSuccessPopup("ยังไม่รองรับการรีเซ็ตจากหน้าเว็บ", "การล้างคะแนนทำได้ที่เซิร์ฟเวอร์ด้วยคำสั่ง npm run seed เท่านั้น");
+        async () => {
+            try {
+                await ApiClient.adminFullReset();
+                await loadElectionData();
+                updateUI();
+                showSuccessPopup("รีเซ็ตข้อมูลเรียบร้อย", "ข้อมูลการเลือกตั้งถูกล้างทั้งหมดแล้ว ระบบพร้อมเริ่มรอบใหม่");
+            } catch (err) {
+                console.error("[FRONTEND] resetElectionData error:", err);
+                showAdminToast(err.message || "เกิดข้อผิดพลาดในการรีเซ็ต");
+            }
         }
     );
 }
@@ -1854,6 +2057,40 @@ async function handleAddStudentSubmit(e) {
 }
 
 // === 8. AI CHATBOT (เชื่อม Gemini ผ่าน Backend) ===
+async function loadChatHistory() {
+    const chatBox = document.getElementById("chat-box");
+    if (!chatBox) return;
+
+    chatBox.innerHTML = `
+    <div class="flex justify-start items-start gap-2">
+      <span class="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center flex-shrink-0"><i data-lucide="bot" class="w-4 h-4"></i></span>
+      <div class="bg-slate-200 text-slate-800 p-3 rounded-xl max-w-[80%]">
+        สวัสดีค่ะ! ฉันคือผู้ช่วยการเลือกตั้ง มีคำถามเกี่ยวกับนโยบายพรรคหรือกำหนดการเลือกตั้งอะไรไหมคะ?
+      </div>
+    </div>`;
+    lucide.createIcons();
+
+    // โหลดประวัติแชทเก่าจาก DB
+    if (!currentUser) return;
+    try {
+        const res = await ApiClient.getChatHistory();
+        const history = res.data || [];
+        history.forEach(item => {
+            chatBox.innerHTML += `
+            <div class="flex justify-end">
+              <div class="bg-blue-600 text-white p-3 rounded-xl max-w-[80%]">${escapeHtml(item.student_prompt)}</div>
+            </div>
+            <div class="flex justify-start items-start gap-2">
+              <span class="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center flex-shrink-0"><i data-lucide="bot" class="w-4 h-4"></i></span>
+              <div class="bg-slate-200 text-slate-800 p-3 rounded-xl max-w-[80%] whitespace-pre-line">${escapeHtml(item.ai_response)}</div>
+            </div>`;
+        });
+        lucide.createIcons();
+        chatBox.scrollTop = chatBox.scrollHeight;
+    } catch (err) {
+        console.warn("loadChatHistory error:", err);
+    }
+}
 async function sendChat() {
     const input = document.getElementById("chat-input");
     const chatBox = document.getElementById("chat-box");
@@ -1976,21 +2213,96 @@ async function forgotRequestOtp() {
 async function forgotResetPassword() {
     const otp = document.getElementById("forgot-otp").value.trim();
     const newPw = document.getElementById("forgot-new-pw").value;
+    const confirmPw = document.getElementById("forgot-confirm-pw").value;
     const err = document.getElementById("forgot-err-2");
     err.classList.add("hidden");
 
     if (otp.length !== 6) { err.innerText = "กรุณากรอกรหัส OTP 6 หลัก"; err.classList.remove("hidden"); return; }
+
+    // Validate password strength (at least score 2 = ปานกลาง)
+    const strength = checkPasswordStrength(newPw);
+    if (strength.score < 2) {
+        err.innerText = "รหัสผ่านใหม่ต้องมีความแข็งแกร่งอย่างน้อยระดับ 'ปานกลาง' (มีตัวพิมพ์ใหญ่ ตัวเลข หรืออักขระพิเศษ)";
+        err.classList.remove("hidden");
+        return;
+    }
     if (newPw.length < 6) { err.innerText = "รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร"; err.classList.remove("hidden"); return; }
+    if (newPw !== confirmPw) { err.innerText = "รหัสผ่านและยืนยันรหัสผ่านไม่ตรงกัน"; err.classList.remove("hidden"); return; }
 
     try {
         await ApiClient.resetPassword(forgotResetToken, otp, newPw);
         closeForgotModal();
-        showAdminToast("ตั้งรหัสผ่านใหม่เรียบร้อยแล้ว เข้าสู่ระบบด้วยรหัสใหม่ได้เลย");
+        showAdminToast("ตั้งรหัสผ่านใหม่เรียบร้อยแล้ว เข้าสู่ระบบด้วยรััสใหม่ได้เลย");
         openAuthModal();
     } catch (e) {
         err.innerText = e.message || "รีเซ็ตรหัสผ่านไม่สำเร็จ";
         err.classList.remove("hidden");
     }
+}
+
+/**
+ * onForgotPasswordInput()
+ * อัปเดต Strength Meter เมื่อพิมพ์รหัสผ่านใหม่ในหน้าลืมรหัสผ่าน
+ */
+function onForgotPasswordInput() {
+    const pw = document.getElementById("forgot-new-pw") ? document.getElementById("forgot-new-pw").value : "";
+    const strengthWrap = document.getElementById("forgot-strength-wrap");
+    const label = document.getElementById("forgot-strength-label");
+    if (!strengthWrap) return;
+
+    if (!pw) {
+        strengthWrap.classList.add("hidden");
+        return;
+    }
+    strengthWrap.classList.remove("hidden");
+
+    const result = checkPasswordStrength(pw);
+    const bars = [
+        document.getElementById("forgot-str-bar-1"),
+        document.getElementById("forgot-str-bar-2"),
+        document.getElementById("forgot-str-bar-3"),
+        document.getElementById("forgot-str-bar-4"),
+    ];
+    bars.forEach((bar, i) => {
+        if (!bar) return;
+        bar.className = "strength-bar h-1 flex-1 rounded-full transition-all";
+        if (i < result.score) {
+            bar.classList.add(result.color);
+        } else {
+            bar.classList.add("bg-slate-200");
+        }
+    });
+    if (label) {
+        label.innerText = result.label;
+        label.className = `text-[11px] font-medium ${result.score <= 1 ? "text-red-500" :
+            result.score === 2 ? "text-yellow-500" : "text-emerald-600"
+            }`;
+    }
+}
+
+/**
+ * onForgotConfirmInput()
+ * แสดงข้อความเปรียบเทียบรหัสผ่านที่ยืนยันกับรหัสผ่านใหม่
+ */
+function onForgotConfirmInput() {
+    const newPw = document.getElementById("forgot-new-pw") ? document.getElementById("forgot-new-pw").value : "";
+    const confirmPw = document.getElementById("forgot-confirm-pw") ? document.getElementById("forgot-confirm-pw").value : "";
+    const msg = document.getElementById("forgot-match-msg");
+    if (!msg) return;
+
+    if (!confirmPw) {
+        msg.classList.add("hidden");
+        return;
+    }
+    msg.classList.remove("hidden");
+    if (newPw === confirmPw) {
+        msg.innerHTML = '<i data-lucide="check-circle" class="w-3 h-3 text-emerald-500"></i> รหัสผ่านตรงกัน';
+        msg.className = "text-[11px] mt-1 flex items-center gap-1 text-emerald-600";
+    } else {
+        msg.innerHTML = '<i data-lucide="x-circle" class="w-3 h-3 text-red-500"></i> รหัสผ่านไม่ตรงกัน';
+        msg.className = "text-[11px] mt-1 flex items-center gap-1 text-red-500";
+    }
+    lucide.createIcons();
 }
 
 /* =========================

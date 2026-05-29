@@ -72,11 +72,13 @@ export const askGemini = async (studentId, message) => {
         .join("\n");
 
     // เตรียมข้อความกำหนดการและกติกา
+    // ⚠️ ทุกวันเวลาที่แสดงในระบบใช้เขตเวลา ICT (UTC+07:00 / GMT+07:00 แบบ Indochina Time) เสมอ
     const scheduleContext = `
+            หมายเหตุสำคัญ: ทุกวันเวลาที่ระบบใช้เขตเวลาประเทศไทย (Thailand Time, UTC+07:00) กรุณาระบุ timezone นี้ทุกครั้งเมื่อกล่าวถึงวันเวลา
             ชื่องาน: ${activeEvent?.event_name}
             ปีการศึกษา: ${activeEvent?.academic_year}
             วันลงคะแนน: วันที่ 26 พฤษภาคม 2569 (ลงคะแนนวันเดียว)
-            เวลาเปิด-ปิดหีบในวันลงคะแนน: ${activeEvent?.start_datetime} ถึง ${activeEvent?.end_datetime}
+            เวลาเปิด-ปิดหีบในวันลงคะแนน (เวลาประเทศไทย, UTC+07:00): ${activeEvent?.start_datetime} ถึง ${activeEvent?.end_datetime}
             วันประกาศและรับรองผล: วันที่ 27 พฤษภาคม 2569
             กติกาการเลือกตั้ง:
             - นักเรียน 1 คน โหวตได้เพียง 1 ครั้ง
@@ -105,6 +107,7 @@ export const askGemini = async (studentId, message) => {
             5. ความเป็นกลาง: ห้ามชี้นำ ห้ามชมพรรคใดพรรคหนึ่งว่าดีกว่าพรรคอื่น
             6. หากถามถึง "ผลการเลือกตั้งย้อนหลัง / ปีที่แล้ว / ผู้ชนะปีก่อน" ให้ตอบตามข้อมูลในส่วน
                "ผลการเลือกตั้งย้อนหลัง" ที่ให้ไว้ (เช่น ผู้ชนะปีการศึกษา 2568 คือ นายกิตติพงศ์ ใจดี)
+            7. สำคัญมาก: ทุกครั้งที่กล่าวถึงวันเวลา ให้ระบุ timezone "เวลาประเทศไทย (UTC+07:00)" ทุกครั้ง เช่น "วันที่ 27 พ.ค. 2569 เวลา 09:00 น. (เวลาประเทศไทย, UTC+07:00)"
 
             === ข้อมูลผู้สมัครและนโยบาย ===
             ${policyContext || "ยังไม่มีข้อมูลผู้สมัครในระบบ"}
@@ -148,8 +151,9 @@ export const askGemini = async (studentId, message) => {
     if (studentId) {
         try {
             await aiRepo.saveChatLog(studentId, message, reply);
+            console.log(`[AI] Chat saved for student_id=${studentId}`);
         } catch (e) {
-            console.warn("saveChatLog skipped:", e.code || e.message);
+            console.error("[AI] saveChatLog FAILED:", e.code, e.message);
         }
     }
 

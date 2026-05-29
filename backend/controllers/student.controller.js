@@ -7,7 +7,7 @@ import * as studentService from '../services/student.service.js';
 export const register = async (req, res, next) => {
     try {
         // 🚨 ปรับมารับ 5 ช่องหลัก + ยืนยันรหัสผ่าน ตามที่เราตกลงกันไว้
-        const { student_id, student_name, student_class, end_year, password, confirm_password } = req.body;
+        const { student_id, student_name, student_class, start_year, end_year, password, confirm_password } = req.body;
 
         // Validation เบื้องต้น
         if (!student_id || !student_name || !password || !confirm_password) {
@@ -19,6 +19,7 @@ export const register = async (req, res, next) => {
             student_id,
             student_name,
             student_class,
+            start_year,
             end_year,
             password,
             confirm_password
